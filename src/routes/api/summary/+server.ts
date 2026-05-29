@@ -26,8 +26,14 @@ export const GET: RequestHandler = async ({ url }) => {
     const sumU = plan.rows.reduce((s, r) => s + r.uph_target, 0);
     targetAvgUph = n > 0 ? sumU / n : 0;
   } else {
+    // mpcPlanMap by full MPC key, falling back to planMap by base name.
+    // Plain Excel rows like "8LSOIC" only land in planMap (keyed "8SOIC"),
+    // so a filter of "8SOIC(C2X)" must strip "(C2X)" before the planMap lookup.
     const plans = pkgFilter
-      .map((k) => plan.mpcPlanMap.get(k) ?? plan.planMap.get(k))
+      .map((k) => {
+        const base = k.split('(')[0] ?? k;
+        return plan.mpcPlanMap.get(k) ?? plan.planMap.get(base);
+      })
       .filter((p): p is NonNullable<typeof p> => Boolean(p));
     targetShift = plans.reduce((s, r) => s + r.plan_per_shift, 0);
     const sumU = plans.reduce((s, r) => s + r.uph_target, 0);

@@ -19,12 +19,18 @@ export const GET: RequestHandler = async ({ url }) => {
   }
 
   const n = w.hours.length;
+  // Lookup priority: mpcPlanMap by full MPC key → planMap by base name (strip
+  // "(CODE)" suffix). Without the base-name fallback, packages whose Excel
+  // plan rows have no MPC code (e.g. plain "8LSOIC") never match a DB pkg_key
+  // like "8SOIC(C2X)" and contribute 0 to the target.
+  const lookup = (k: string) => {
+    const base = k.split('(')[0] ?? k;
+    return plan.mpcPlanMap.get(k) ?? plan.planMap.get(base);
+  };
   const totalTarget =
     pkgFilter.length === 0
       ? plan.rows.reduce((s, r) => s + r.plan_per_shift, 0)
-      : pkgFilter
-          .map((k) => plan.mpcPlanMap.get(k) ?? plan.planMap.get(k))
-          .reduce((s, r) => s + (r?.plan_per_shift ?? 0), 0);
+      : pkgFilter.map(lookup).reduce((s, r) => s + (r?.plan_per_shift ?? 0), 0);
 
   const targetCumulative = Array.from({ length: n }, (_, i) =>
     Math.trunc((totalTarget * (i + 1)) / n)
