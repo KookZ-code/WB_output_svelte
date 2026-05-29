@@ -1,19 +1,41 @@
-// better-sqlite3 connection — single read-only handle reused across requests.
-// PRAGMA query_only = ON belt-and-braces: even if `readonly` flag were toggled,
-// no writes can happen.
+// better-sqlite3 connection — opens the LOCAL CACHE that's mirrored from the
+// share by db-sync.
+//
+// On every db() call:
+//   1. Ask db-sync if the share is newer than our last sync (mtime check)
+//   2. If yes — close any open conn (Windows EPERM otherwise), copy, reopen
+//   3. Otherwise reuse the cached conn
 
 import Database from 'better-sqlite3';
 import type { Database as DB } from 'better-sqlite3';
-import { DB_PATH } from './config';
+import { existsSync } from 'node:fs';
+import { getLocalPath, needsSync, runSync } from './db-sync';
 
 let conn: DB | null = null;
 
+function openConn(path: string): DB {
+  const c = new Database(path, { readonly: true, fileMustExist: true });
+  c.pragma('query_only = ON');
+  return c;
+}
+
 export function db(): DB {
-  if (!conn) {
-    conn = new Database(DB_PATH, { readonly: true, fileMustExist: true });
-    conn.pragma('journal_mode = WAL');
-    conn.pragma('query_only = ON');
+  const localPath = getLocalPath();
+  const shareMtime = needsSync();
+
+  if (shareMtime !== null) {
+    // Share has newer data (or no local copy yet) — close + sync + reopen
+    if (conn) {
+      conn.close();
+      conn = null;
+    }
+    runSync(shareMtime);
+  } else if (!conn && !existsSync(localPath)) {
+    // Nothing to sync from AND no local cache — fatal
+    throw new Error('DB share unreachable and no local cache available');
   }
+
+  if (!conn) conn = openConn(localPath);
   return conn;
 }
 

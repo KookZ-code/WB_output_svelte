@@ -46,3 +46,9 @@ yarn-error.log*
 # ─── IIS / Windows ───────────────────────────────────────────────
 web.config
 .gstack/
+
+# ─── Runtime data cache ──────────────────────────────────────────
+# DB share is mirrored to ./data/.cache/ for SQLite local-file access
+data/.cache/
+data/*.db
+data/*.db-*
