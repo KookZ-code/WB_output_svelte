@@ -1,8 +1,10 @@
 // Port of WB_Dashboard/src/db.rs query_hourly.
 //
 // This is the most involved query: it loads all in-shift records once, plus
-// pre-shift baselines per (machine, lot), then for each hour slot computes
-// MAX(bonded_unit) up to slot_end and subtracts the appropriate baseline.
+// pre-shift baselines per (machine, lot), then for each hour slot computes the
+// reset-aware cumulative output up to slot_end starting from the appropriate
+// baseline. Reset-aware (see delta.ts) handles a capillary (cap) change that
+// resets bonded_unit to 0 mid-lot; a plain MAX would drop all post-reset units.
 //
 // Baseline rules (in priority):
 //   1. pre-shift last value if exists
@@ -10,7 +12,8 @@
 //   3. genuinely new lot → 0
 
 import { db, buildPkgClause } from '../db';
-import { slotEndForHour, type ShiftWindow } from '../shift';
+import { slotEndForHour, parseSqlTs, type ShiftWindow } from '../shift';
+import { resetAwareTotal } from './delta';
 
 interface Rec {
   package: string;
@@ -39,7 +42,7 @@ export function queryHourly(w: ShiftWindow, pkgFilter: string[]): Map<string, nu
   }>;
   const preBaselines = new Map<string, number>();
   for (const r of preRows) {
-    const k = `${r.machine_id}${r.lot_id}`;
+    const k = `${r.machine_id}${r.lot_id}`;
     if (!preBaselines.has(k)) preBaselines.set(k, r.bonded_unit);
   }
 
@@ -74,10 +77,27 @@ export function queryHourly(w: ShiftWindow, pkgFilter: string[]): Map<string, nu
   // First scan info per (package, machine, lot): bonded, ts, uph
   const firstScan = new Map<string, { bonded: number; ts: string; uph: number }>();
   for (const r of recs) {
-    const key = `${r.package}${r.machine_id}${r.lot_id}`;
+    const key = `${r.package}${r.machine_id}${r.lot_id}`;
     if (!firstScan.has(key)) {
       firstScan.set(key, { bonded: r.bonded, ts: r.ts, uph: r.uph });
     }
+  }
+
+  // Time-ordered scan series per (package, machine, lot). recs is already
+  // ordered by created_at, so each series' bonded values are in time order.
+  const series = new Map<
+    string,
+    { pkg: string; machine: string; lot: string; ts: string[]; bonded: number[] }
+  >();
+  for (const r of recs) {
+    const key = `${r.package}${r.machine_id}${r.lot_id}`;
+    let s = series.get(key);
+    if (!s) {
+      s = { pkg: r.package, machine: r.machine_id, lot: r.lot_id, ts: [], bonded: [] };
+      series.set(key, s);
+    }
+    s.ts.push(r.ts);
+    s.bonded.push(r.bonded);
   }
 
   // Hours since shift_start for a "YYYY-MM-DD HH:MM:SS" timestamp
@@ -94,28 +114,17 @@ export function queryHourly(w: ShiftWindow, pkgFilter: string[]): Map<string, nu
     const h = w.hours[slotIdx];
     const slotEnd = slotEndForHour(w, slotIdx, h);
 
-    // For each (pkg, machine, lot) group: MAX bonded_unit up to slotEnd
-    const maxUpTo = new Map<string, { pkg: string; machine: string; lot: string; max: number }>();
-    for (const r of recs) {
-      if (r.ts <= slotEnd) {
-        const key = `${r.package}${r.machine_id}${r.lot_id}`;
-        const existing = maxUpTo.get(key);
-        if (!existing) {
-          maxUpTo.set(key, {
-            pkg: r.package,
-            machine: r.machine_id,
-            lot: r.lot_id,
-            max: r.bonded,
-          });
-        } else if (r.bonded > existing.max) {
-          existing.max = r.bonded;
-        }
-      }
-    }
-
     const slotTotals = new Map<string, number>();
-    for (const [key, g] of maxUpTo) {
-      const preKey = `${g.machine}${g.lot}`;
+    for (const [key, s] of series) {
+      // bonded values scanned up to slotEnd (ts ascending -> break early)
+      const vals: number[] = [];
+      for (let i = 0; i < s.ts.length; i++) {
+        if (s.ts[i] <= slotEnd) vals.push(s.bonded[i]);
+        else break;
+      }
+      if (vals.length === 0) continue;
+
+      const preKey = `${s.machine}${s.lot}`;
       let baseline: number;
       const pre = preBaselines.get(preKey);
       if (pre !== undefined) {
@@ -134,8 +143,8 @@ export function queryHourly(w: ShiftWindow, pkgFilter: string[]): Map<string, nu
           baseline = 0;
         }
       }
-      const delta = Math.max(0, g.max - baseline);
-      slotTotals.set(g.pkg, (slotTotals.get(g.pkg) ?? 0) + delta);
+      const delta = resetAwareTotal(baseline, vals);
+      slotTotals.set(s.pkg, (slotTotals.get(s.pkg) ?? 0) + delta);
     }
 
     for (const [pkg, total] of slotTotals) {
@@ -154,17 +163,4 @@ export function queryHourly(w: ShiftWindow, pkgFilter: string[]): Map<string, nu
   }
 
   return pkgMap;
-}
-
-/** Parse "YYYY-MM-DD HH:MM:SS" to epoch ms (treats as UTC for arithmetic only). */
-function parseSqlTs(ts: string): number {
-  // Date.UTC arithmetic — only relative differences matter, so UTC vs local
-  // doesn't change `t2 - t1` as long as we're consistent.
-  const y = +ts.slice(0, 4);
-  const m = +ts.slice(5, 7);
-  const d = +ts.slice(8, 10);
-  const hh = +ts.slice(11, 13);
-  const mm = +ts.slice(14, 16);
-  const ss = +ts.slice(17, 19);
-  return Date.UTC(y, m - 1, d, hh, mm, ss);
 }

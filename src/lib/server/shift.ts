@@ -61,6 +61,18 @@ export function hourLabel(h: number): string {
   return pad2(h) + ':00';
 }
 
+/** Parse "YYYY-MM-DD HH:MM:SS" to epoch ms (UTC for arithmetic only — only
+ *  relative differences are used, so UTC vs local doesn't change `t2 - t1`). */
+export function parseSqlTs(ts: string): number {
+  const y = +ts.slice(0, 4);
+  const m = +ts.slice(5, 7);
+  const d = +ts.slice(8, 10);
+  const hh = +ts.slice(11, 13);
+  const mm = +ts.slice(14, 16);
+  const ss = +ts.slice(17, 19);
+  return Date.UTC(y, m - 1, d, hh, mm, ss);
+}
+
 /** End-of-hour timestamp for a given slot (clamped to shift end). */
 export function slotEndForHour(w: ShiftWindow, slotIdx: number, hour: number): string {
   // For D shift, all hours belong to the same date as start.
