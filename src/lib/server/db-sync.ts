@@ -7,7 +7,14 @@
 //      DB connection to the local cache BEFORE calling this, otherwise the
 //      rename fails with EPERM on Windows.
 
-import { copyFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { DB_PATH } from './config';
 
@@ -18,6 +25,10 @@ let lastSyncedMtimeMs = 0;
 
 export function getLocalPath(): string {
   return LOCAL_DB;
+}
+
+export function localExists(): boolean {
+  return existsSync(LOCAL_DB);
 }
 
 /** Returns share mtime if newer than our last sync OR local doesn't exist. Null otherwise. */
@@ -39,13 +50,34 @@ export function needsSync(): number | null {
   return shareMtime > lastSyncedMtimeMs ? shareMtime : null;
 }
 
-/** Copy share → local. Caller must have closed any open connection to LOCAL_DB. */
+function safeUnlink(p: string): void {
+  if (existsSync(p)) {
+    try {
+      unlinkSync(p);
+    } catch {
+      /* best-effort */
+    }
+  }
+}
+
+/**
+ * Copy share → local. Caller must have closed any open connection to LOCAL_DB.
+ * Throws on failure (caller may then fall back to stale cache if it exists).
+ * Cleans up dangling tmp file from prior failed attempts before+after.
+ */
 export function runSync(shareMtime: number): void {
   if (!existsSync(CACHE_DIR)) {
     mkdirSync(CACHE_DIR, { recursive: true });
   }
   const tmp = LOCAL_DB + '.tmp';
+  // Drop any leftover tmp from a previous failed rename
+  safeUnlink(tmp);
   copyFileSync(DB_PATH, tmp);
-  renameSync(tmp, LOCAL_DB);
+  try {
+    renameSync(tmp, LOCAL_DB);
+  } catch (err) {
+    safeUnlink(tmp);
+    throw err;
+  }
   lastSyncedMtimeMs = shareMtime;
 }
