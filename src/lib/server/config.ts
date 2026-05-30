@@ -1,5 +1,8 @@
-// Server-only env reader. Throws fast if a required path is missing or unreadable.
-import { existsSync } from 'node:fs';
+// Server-only env reader. Validates that required env vars are set.
+// Path existence is NOT checked here — DB_PATH may be a network share that is
+// transiently locked at shift boundaries; db-sync.ts handles that with stale-
+// cache fallback. Checking existsSync at module-load time would throw before
+// db-sync gets a chance to serve the cached copy.
 
 function required(name: string): string {
   const v = process.env[name];
@@ -9,10 +12,3 @@ function required(name: string): string {
 
 export const DB_PATH = required('DB_PATH');
 export const XLSX_PATH = required('XLSX_PATH');
-
-if (!existsSync(DB_PATH)) {
-  throw new Error(`DB_PATH does not exist: ${DB_PATH}`);
-}
-if (!existsSync(XLSX_PATH)) {
-  throw new Error(`XLSX_PATH does not exist: ${XLSX_PATH}`);
-}
