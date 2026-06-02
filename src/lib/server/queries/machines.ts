@@ -20,15 +20,25 @@ export function queryMachines(
     ? Math.trunc((planMap.get(packageKey)?.plan_per_shift ?? 0) * hourFraction)
     : 0;
 
-  const sql = `SELECT machine_id,
-            MAX(badge_no)                AS badge_no,
-            AVG(avg_uph)                 AS avg_uph,
-            COALESCE(SUM(delta), 0)      AS bonded,
-            MAX(pkg_mpc)                 AS pkg_mpc
+  const sql = `SELECT
+            inner_q.machine_id,
+            MAX(inner_q.badge_no)   AS badge_no,
+            COALESCE((
+                SELECT r.uph
+                FROM uph_records r
+                WHERE r.machine_id = inner_q.machine_id
+                  AND r.voided     = 0
+                  AND r.uph        > 0
+                  AND COALESCE(r.package_mpc, CASE WHEN r.mpc IS NOT NULL AND LENGTH(r.mpc)>=9 THEN r.package||'('||SUBSTR(r.mpc,7,3)||')' ELSE r.package END) = @pkg
+                  AND r.created_at >= @start
+                  AND r.created_at <= @slot_end
+                ORDER BY r.created_at DESC LIMIT 1
+            ), 0)                   AS avg_uph,
+            COALESCE(SUM(inner_q.delta), 0) AS bonded,
+            MAX(inner_q.pkg_mpc)    AS pkg_mpc
      FROM (
          SELECT machine_id, lot_id,
                 MAX(badge_no)            AS badge_no,
-                AVG(CASE WHEN uph > 0 THEN uph END) AS avg_uph,
                 COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) AS pkg_mpc,
                 MAX(0, MAX(bonded_unit) - COALESCE(
                     (SELECT bonded_unit FROM uph_records pre
@@ -59,8 +69,8 @@ export function queryMachines(
            AND created_at >= @start
            AND created_at <= @slot_end
          GROUP BY machine_id, lot_id
-     )
-     GROUP BY machine_id
+     ) inner_q
+     GROUP BY inner_q.machine_id
      ORDER BY bonded DESC`;
 
   const rows = db()
