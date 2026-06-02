@@ -86,8 +86,10 @@ export function querySummary(w: ShiftWindow, pkgFilter: string[]): SummaryQueryR
       groups.set(key, g);
     }
     g.bonded.push(r.bonded_unit);
-    g.uphSum += r.uph;
-    g.uphCount += 1;
+    if (r.uph > 0) {
+      g.uphSum += r.uph;
+      g.uphCount += 1;
+    }
   }
 
   const startMs = parseSqlTs(w.start);

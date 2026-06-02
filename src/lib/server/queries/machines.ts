@@ -28,7 +28,7 @@ export function queryMachines(
      FROM (
          SELECT machine_id, lot_id,
                 MAX(badge_no)            AS badge_no,
-                AVG(uph)                 AS avg_uph,
+                AVG(CASE WHEN uph > 0 THEN uph END) AS avg_uph,
                 COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) AS pkg_mpc,
                 MAX(0, MAX(bonded_unit) - COALESCE(
                     (SELECT bonded_unit FROM uph_records pre
