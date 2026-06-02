@@ -73,23 +73,23 @@ export function queryMachines(
     pkg_mpc: string | null;
   }>;
 
+  // elapsed_hours = number of complete 1-hour slots up to and including the
+  // selected slot (slotIdx is 0-based, so slot 0 = first hour = 1 elapsed hour).
+  const elapsedHours = slotIdx + 1;
+
   return rows.map((r) => {
     const uphTarget = r.pkg_mpc ? mpcPlanMap.get(r.pkg_mpc)?.uph_target ?? baseUphTarget : baseUphTarget;
-    let vsTargetPct: number;
-    if (uphTarget > 0) {
-      vsTargetPct = ((r.avg_uph - uphTarget) / uphTarget) * 100;
-    } else if (targetBonded > 0) {
-      vsTargetPct = ((r.bonded - targetBonded) / targetBonded) * 100;
-    } else {
-      vsTargetPct = 0;
-    }
+    // Expected cumulative output = target UPH × hours elapsed in shift so far.
+    const expectedBonded = uphTarget * elapsedHours;
+    const vsOutputPct =
+      expectedBonded > 0 ? ((r.bonded - expectedBonded) / expectedBonded) * 100 : 0;
     return {
       machine_id: r.machine_id,
       badge_no: r.badge_no,
       target_uph: uphTarget,
       uph: r.avg_uph,
       bonded_unit: r.bonded,
-      vs_target_pct: vsTargetPct,
+      vs_output_pct: vsOutputPct,
     };
   });
 }

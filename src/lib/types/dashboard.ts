@@ -38,7 +38,7 @@ export interface MachineRow {
   target_uph: number;
   uph: number;
   bonded_unit: number;
-  vs_target_pct: number;
+  vs_output_pct: number; // (bonded − target_uph × elapsed_hours) / expected × 100
 }
 
 export interface RawRecord {

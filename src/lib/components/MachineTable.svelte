@@ -20,7 +20,7 @@
 
   function badgeClass(pct: number): string {
     if (pct >= 0) return 'green';
-    if (pct >= -15) return 'orange';
+    if (pct >= -20) return 'orange';
     return 'red';
   }
 </script>
@@ -41,7 +41,7 @@
           <th class="r">Target UPH</th>
           <th class="r">Actual UPH</th>
           <th class="r">Bonded</th>
-          <th>vs Target</th>
+          <th class="r">Output vs Expected</th>
         </tr>
       </thead>
       <tbody>
@@ -57,9 +57,9 @@
               {fmtInt(r.uph)}
             </td>
             <td class="r">{fmtInt(r.bonded_unit)}</td>
-            <td>
-              <span class="badge {badgeClass(r.vs_target_pct)}">
-                {fmtSignedPct(r.vs_target_pct, 0)}
+            <td class="r">
+              <span class="badge {badgeClass(r.vs_output_pct)}">
+                {fmtSignedPct(r.vs_output_pct, 0)}
               </span>
             </td>
           </tr>
