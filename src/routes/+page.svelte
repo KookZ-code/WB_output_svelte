@@ -11,6 +11,7 @@
     HourlyResponse,
     PackageRow,
     MachineRow,
+    MachinesResponse,
     RawRecord,
   } from '$lib/types/dashboard';
 
@@ -27,6 +28,7 @@
   let hourly = $state<HourlyResponse | null>(null);
   let packageRows = $state<PackageRow[] | null>(null);
   let machineRows = $state<MachineRow[] | null>(null);
+  let requiredMc = $state<number>(0);
   let recordRows = $state<RawRecord[] | null>(null);
 
   let packagesList = $state<string[]>([]);
@@ -84,9 +86,11 @@
   async function fetchMachines(hour: number, pkg: string) {
     const qs = `date=${dashboard.date}&shift=${dashboard.shift}&hour=${hour}&package=${encodeURIComponent(pkg)}`;
     try {
-      machineRows = await fetch(`${base}/api/machines?${qs}`).then(
-        (r) => r.json() as Promise<MachineRow[]>
+      const res = await fetch(`${base}/api/machines?${qs}`).then(
+        (r) => r.json() as Promise<MachinesResponse>
       );
+      machineRows = res.rows;
+      requiredMc = res.required_mc;
     } catch (e) {
       console.error(e);
     }
@@ -163,7 +167,7 @@
 
 <section class="drill-row">
   <PackagePanel rows={packageRows} hour={dashboard.selectedHour} onSelect={selectPkg} />
-  <MachineTable rows={machineRows} pkg={dashboard.selectedPkg} onSelect={selectMachine} />
+  <MachineTable rows={machineRows} pkg={dashboard.selectedPkg} {requiredMc} onSelect={selectMachine} />
 </section>
 
 <section class="drill-records">

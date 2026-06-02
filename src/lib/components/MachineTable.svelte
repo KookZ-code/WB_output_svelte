@@ -7,9 +7,16 @@
   type Props = {
     rows: MachineRow[] | null;
     pkg: string | null;
+    requiredMc: number;
     onSelect: (machineId: string) => void;
   };
-  const { rows, pkg, onSelect }: Props = $props();
+  const { rows, pkg, requiredMc, onSelect }: Props = $props();
+
+  const reportingMc = $derived(rows?.length ?? 0);
+  const mcDelta = $derived(reportingMc - requiredMc);
+  const mcTone = $derived(
+    requiredMc === 0 ? 'neutral' : mcDelta >= 0 ? 'green' : 'red'
+  );
 
   function uphColor(r: MachineRow): string {
     if (r.target_uph <= 0) return 'var(--color-text-body)';
@@ -33,6 +40,24 @@
 {:else}
   <div class="active">
     <div class="label">▼ {pkg} — by Machine</div>
+
+    <div class="mc-bar">
+      <div class="mc-chip">
+        <span class="mc-num">{reportingMc}</span>
+        <span class="mc-sub">reporting</span>
+      </div>
+      <div class="mc-sep">/</div>
+      <div class="mc-chip">
+        <span class="mc-num">{requiredMc > 0 ? requiredMc : '—'}</span>
+        <span class="mc-sub">required</span>
+      </div>
+      {#if requiredMc > 0}
+        <div class="mc-badge {mcTone}">
+          {mcDelta >= 0 ? '+' : ''}{mcDelta} M/C
+        </div>
+      {/if}
+    </div>
+
     <table>
       <thead>
         <tr>
@@ -102,7 +127,56 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-primary);
+    margin-bottom: 8px;
+  }
+  .mc-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin-bottom: 10px;
+  }
+  .mc-chip {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    background: var(--color-surface-gray);
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+  }
+  .mc-num {
+    font-size: 18px;
+    font-weight: 700;
+    font-feature-settings: 'tnum';
+    color: var(--color-text-body);
+  }
+  .mc-sub {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .mc-sep {
+    font-size: 16px;
+    color: var(--color-text-muted);
+  }
+  .mc-badge {
+    margin-left: 4px;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .mc-badge.green {
+    background: #e8f5ee;
+    color: var(--color-accent-green);
+  }
+  .mc-badge.red {
+    background: #fdecea;
+    color: var(--color-brand-red);
+  }
+  .mc-badge.neutral {
+    background: var(--color-surface-gray);
+    color: var(--color-text-muted);
   }
   table {
     width: 100%;

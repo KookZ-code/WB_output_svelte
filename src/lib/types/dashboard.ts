@@ -40,6 +40,11 @@ export interface MachineRow {
   vs_output_pct: number; // (bonded − target_uph × elapsed_hours) / expected × 100
 }
 
+export interface MachinesResponse {
+  rows: MachineRow[];
+  required_mc: number; // ⌈plan_per_shift / (target_uph × shift_hours)⌉
+}
+
 export interface RawRecord {
   created_at: string;
   lot_id: string;

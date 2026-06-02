@@ -19,7 +19,19 @@ export const GET: RequestHandler = async ({ url }) => {
 
   try {
     const rows = queryMachines(w, hour, dbPkg, plan.planMap, plan.mpcPlanMap);
-    return json(rows);
+
+    // Required M/C = ⌈plan_per_shift / (target_uph × shift_hours)⌉
+    const base = dbPkg.split('(')[0] ?? dbPkg;
+    const planRow = plan.mpcPlanMap.get(dbPkg) ?? plan.planMap.get(base);
+    const targetUph = planRow?.uph_target ?? 0;
+    const planPerShift = planRow?.plan_per_shift ?? 0;
+    const shiftHours = w.hours.length;
+    const required_mc =
+      targetUph > 0 && planPerShift > 0
+        ? Math.ceil(planPerShift / (targetUph * shiftHours))
+        : 0;
+
+    return json({ rows, required_mc });
   } catch (e) {
     error(503, `DB error: ${e instanceof Error ? e.message : String(e)}`);
   }
