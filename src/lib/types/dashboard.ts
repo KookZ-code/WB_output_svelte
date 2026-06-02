@@ -14,8 +14,7 @@ export interface SummaryResponse {
   target_shift: number;
   achievement_pct: number;
   active_machines: number;
-  avg_uph: number;
-  target_avg_uph: number;
+  active_operators: number;
 }
 
 export interface HourlyResponse {

@@ -17,14 +17,10 @@ export const GET: RequestHandler = async ({ url }) => {
     error(503, `DB error: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // Target totals — sum of plan_per_shift, average of uph_target
+  // Target shift total — sum of plan_per_shift for the relevant packages.
   let targetShift: number;
-  let targetAvgUph: number;
   if (pkgFilter.length === 0) {
-    const n = plan.rows.length;
     targetShift = plan.rows.reduce((s, r) => s + r.plan_per_shift, 0);
-    const sumU = plan.rows.reduce((s, r) => s + r.uph_target, 0);
-    targetAvgUph = n > 0 ? sumU / n : 0;
   } else {
     // mpcPlanMap by full MPC key, falling back to planMap by base name.
     // Plain Excel rows like "8LSOIC" only land in planMap (keyed "8SOIC"),
@@ -36,8 +32,6 @@ export const GET: RequestHandler = async ({ url }) => {
       })
       .filter((p): p is NonNullable<typeof p> => Boolean(p));
     targetShift = plans.reduce((s, r) => s + r.plan_per_shift, 0);
-    const sumU = plans.reduce((s, r) => s + r.uph_target, 0);
-    targetAvgUph = plans.length > 0 ? sumU / plans.length : 0;
   }
 
   const achievementPct = targetShift > 0 ? (data.total_bonded / targetShift) * 100 : 0;
@@ -52,8 +46,7 @@ export const GET: RequestHandler = async ({ url }) => {
     target_shift: targetShift,
     achievement_pct: achievementPct,
     active_machines: data.active_machines,
-    avg_uph: data.avg_uph,
-    target_avg_uph: targetAvgUph,
+    active_operators: data.active_operators,
   };
   return json(body);
 };

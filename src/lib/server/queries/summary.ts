@@ -16,7 +16,7 @@ import { resetAwareTotal } from './delta';
 export interface SummaryQueryRow {
   total_bonded: number;
   active_machines: number;
-  avg_uph: number;
+  active_operators: number;
 }
 
 export function querySummary(w: ShiftWindow, pkgFilter: string[]): SummaryQueryRow {
@@ -40,7 +40,8 @@ export function querySummary(w: ShiftWindow, pkgFilter: string[]): SummaryQueryR
   const pkgClause = buildPkgClause(pkgFilter);
   const rows = conn
     .prepare(
-      `SELECT machine_id, lot_id, bonded_unit, created_at, uph
+      `SELECT machine_id, lot_id, bonded_unit, created_at, uph,
+              COALESCE(badge_no, '') AS badge_no
        FROM uph_records
        WHERE voided = 0
          AND created_at >= @start
@@ -54,6 +55,7 @@ export function querySummary(w: ShiftWindow, pkgFilter: string[]): SummaryQueryR
     bonded_unit: number;
     created_at: string;
     uph: number;
+    badge_no: string;
   }>;
 
   // Group by (machine, lot): time-ordered bonded values + first scan + uph mean.
@@ -94,9 +96,14 @@ export function querySummary(w: ShiftWindow, pkgFilter: string[]): SummaryQueryR
 
   const startMs = parseSqlTs(w.start);
 
+  // Collect distinct operators from all in-shift rows (not just per group)
+  const operators = new Set<string>();
+  for (const r of rows) {
+    if (r.badge_no) operators.add(r.badge_no);
+  }
+
   let totalBonded = 0;
   const machines = new Set<string>();
-  let avgUphSum = 0; // sum of per-group AVG(uph), averaged at the end
 
   for (const g of groups.values()) {
     let baseline: number;
@@ -114,12 +121,11 @@ export function querySummary(w: ShiftWindow, pkgFilter: string[]): SummaryQueryR
     }
     totalBonded += resetAwareTotal(baseline, g.bonded);
     machines.add(g.machine);
-    avgUphSum += g.uphSum / g.uphCount;
   }
 
   return {
     total_bonded: totalBonded,
     active_machines: machines.size,
-    avg_uph: groups.size > 0 ? avgUphSum / groups.size : 0,
+    active_operators: operators.size,
   };
 }

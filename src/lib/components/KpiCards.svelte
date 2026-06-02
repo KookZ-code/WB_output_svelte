@@ -52,13 +52,11 @@
 
   <article class="kpi-card" data-tone="orange">
     <span class="accent"></span>
-    <div class="label">Avg UPH (Floor)</div>
+    <div class="label">Active Operators</div>
     <div class="value" data-tone="orange">
-      {summary ? fmtInt(summary.avg_uph) : '—'}
+      {summary ? fmtInt(summary.active_operators) : '—'}
     </div>
-    <div class="sub">
-      {summary ? `target ${fmtInt(summary.target_avg_uph)}` : 'target —'}
-    </div>
+    <div class="sub">reporting this shift</div>
   </article>
 </section>
 
