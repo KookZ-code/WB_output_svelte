@@ -36,7 +36,7 @@
 <header class="header">
   <div class="header-left">
     <h1>Wire Bond Output Monitor</h1>
-    <div class="subtitle">Assembly · Thailand Plant</div>
+    <div class="subtitle">Assembly : MTAI Plant</div>
   </div>
 
   <div class="header-right">
