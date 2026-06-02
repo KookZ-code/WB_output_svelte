@@ -1,9 +1,15 @@
 // Port of WB_Dashboard/src/excel.rs
 //
 // Two layouts of package names exist in the plan:
-//   "8LSOIC IDF"      → "8SOIC"     (L immediately after digits, space = size suffix)
-//   "36L SQFN 6X6..." → "36SQFN"    (space between L and type — concatenate digits+type)
+//   "8LSOIC IDF"       → "8SOIC IDF"  (word-only qualifier preserved)
+//   "44L TQFP HD 7x7"  → "44TQFP HD"  (HD preserved; size spec 7x7 dropped)
+//   "36L SQFN 6X6..."  → "36SQFN"     (6X6 has digit → treated as size spec, dropped)
 // Manual override: "8LEIAJ" → "8SOIJ" (machines report SOIJ, plan uses EIAJ)
+//
+// Rule: after extracting the package type token (e.g. SOIC, TQFP), if the
+// next whitespace-separated word is purely alphabetic (HD, UD, IDF…) it is a
+// product-line qualifier kept in the key.  A word that contains a digit
+// (7x7, 6X6, 3x3…) is a size spec and is dropped.
 
 import * as XLSX from 'xlsx';
 import { readFileSync } from 'node:fs';
@@ -15,72 +21,58 @@ function clean(raw: string): string {
   return raw.replace(new RegExp(NBSP, 'g'), '').trim();
 }
 
+/** Shared core: extract `digits + typeToken [+ qualifier]` from a cleaned string.
+ *  Returns [base, qualifier] where qualifier is a word-only suffix (HD/UD/IDF…)
+ *  or an empty string when none is present. */
+function extractParts(s: string): [base: string, qualifier: string] {
+  let i = 0;
+  let digits = '';
+  while (i < s.length && /[0-9]/.test(s[i])) { digits += s[i++]; }
+  if (!digits) return [s, ''];
+
+  let typeToken = '';
+  if (s[i] === 'L' || s[i] === 'l') {
+    i++; // consume L
+    if (s[i] === ' ') i++; // "36L SQFN" style
+    while (i < s.length && s[i] !== ' ' && s[i] !== '(') { typeToken += s[i++]; }
+  } else {
+    // No L — take the first whitespace-delimited token as-is ("44TQFP" etc.)
+    while (i < s.length && s[i] !== ' ' && s[i] !== '(') { typeToken += s[i++]; }
+  }
+  const base = digits + typeToken;
+
+  // Look ahead for a word-only qualifier (alphabetic only → product line suffix).
+  // A word containing a digit (7x7, 6X6) is a size spec — stop there.
+  while (i < s.length && s[i] === ' ') i++;
+  if (i < s.length && s[i] !== '(') {
+    let word = '';
+    const j = i;
+    while (i < s.length && s[i] !== ' ' && s[i] !== '(') { word += s[i++]; }
+    if (/^[A-Za-z]+$/.test(word)) return [base, word];
+    i = j; // digit in word → size spec, ignore
+  }
+  return [base, ''];
+}
+
 /** Normalize for display only — Excel-derived name without DB-name override. */
 export function normalizeDisplay(raw: string): string {
   const s = clean(raw);
-  let i = 0;
-  let digits = '';
-  while (i < s.length && /[0-9]/.test(s[i])) {
-    digits += s[i];
-    i++;
-  }
-  if (digits.length === 0) return s;
-  if (s[i] !== 'L' && s[i] !== 'l') {
-    // No L — drop everything after first space
-    return s.split(/\s+/)[0];
-  }
-  i++; // consume L
-  let rest = '';
-  if (s[i] === ' ') {
-    i++;
-    while (i < s.length && s[i] !== ' ' && s[i] !== '(') {
-      rest += s[i];
-      i++;
-    }
-  } else {
-    while (i < s.length && s[i] !== ' ' && s[i] !== '(') {
-      rest += s[i];
-      i++;
-    }
-  }
-  return digits + rest;
+  const [base, qualifier] = extractParts(s);
+  return qualifier ? `${base} ${qualifier}` : base;
 }
 
 /**
  * Normalize an Excel package name to the short DB key.
- *   "8LSOIC IDF"       → "8SOIC"
- *   "36L SQFN 6X6(UDX)" → "36SQFN"
- *   "8LEIAJ"           → "8SOIJ"   (manual override)
+ *   "8LSOIC IDF"        → "8SOIC IDF"   (word qualifier preserved)
+ *   "44L TQFP HD 7x7"   → "44TQFP HD"   (HD kept, size spec 7x7 dropped)
+ *   "36L SQFN 6X6(UDX)" → "36SQFN"      (6X6 has digit → size spec, dropped)
+ *   "8LEIAJ"            → "8SOIJ"        (manual override)
  */
 export function normalizePackage(raw: string): string {
   const s = clean(raw);
-  let i = 0;
-  let digits = '';
-  while (i < s.length && /[0-9]/.test(s[i])) {
-    digits += s[i];
-    i++;
-  }
-  if (digits.length === 0) return s;
-  if (s[i] !== 'L' && s[i] !== 'l') {
-    return s.split(/\s+/)[0];
-  }
-  i++; // consume L
-  let rest = '';
-  if (s[i] === ' ') {
-    i++;
-    while (i < s.length && s[i] !== ' ' && s[i] !== '(') {
-      rest += s[i];
-      i++;
-    }
-  } else {
-    while (i < s.length && s[i] !== ' ' && s[i] !== '(') {
-      rest += s[i];
-      i++;
-    }
-  }
-  const normalized = digits + rest;
-  if (normalized === '8EIAJ') return '8SOIJ';
-  return normalized;
+  const [base, qualifier] = extractParts(s);
+  const norm = qualifier ? `${base} ${qualifier}` : base;
+  return norm === '8EIAJ' ? '8SOIJ' : norm;
 }
 
 /**
