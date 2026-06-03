@@ -57,20 +57,37 @@ export function queryPackages(
     bonded: number;
   }>;
 
-  return rows.map(({ pkg_key, bonded }) => {
+  // Build rows, then merge variants that share a base plan.
+  // When a pkg_key has no MPC-specific plan (mpcPlanMap miss), all variants
+  // with the same base (e.g. "8SOIC(C2X)" + "8SOIC(CYX)" → "8SOIC") are
+  // summed together and compared against the single base plan.
+  const mpcRows: PackageRow[] = [];
+  const baseMerge = new Map<string, PackageRow>();
+
+  for (const { pkg_key, bonded } of rows) {
     const basePkg = pkg_key.split('(')[0] ?? pkg_key;
-    const planRow = mpcPlanMap.get(pkg_key) ?? planMap.get(basePkg);
-    const planPerShift = planRow?.plan_per_shift ?? 0;
-    const target = planRow ? Math.trunc(planRow.plan_per_shift * hourFraction) : 0;
-    // % deviation from the pro-rated target at this hour slot:
-    //   positive = ahead of pace, negative = behind pace
-    const pct = target > 0 ? ((bonded - target) / target) * 100 : 0;
-    return {
-      package: pkg_key,
-      plan_per_shift: planPerShift,
-      bonded,
-      target,
-      pct,
-    };
-  });
+    const mpcPlanRow = mpcPlanMap.get(pkg_key);
+
+    if (mpcPlanRow) {
+      // Has its own MPC plan — keep separate
+      const target = Math.trunc(mpcPlanRow.plan_per_shift * hourFraction);
+      const pct = target > 0 ? ((bonded - target) / target) * 100 : 0;
+      mpcRows.push({ package: pkg_key, plan_per_shift: mpcPlanRow.plan_per_shift, bonded, target, pct });
+    } else {
+      // Falls back to base plan — merge all variants together
+      const planRow = planMap.get(basePkg);
+      const planPerShift = planRow?.plan_per_shift ?? 0;
+      const target = planRow ? Math.trunc(planPerShift * hourFraction) : 0;
+      const existing = baseMerge.get(basePkg);
+      if (existing) {
+        existing.bonded += bonded;
+        existing.pct = existing.target > 0 ? ((existing.bonded - existing.target) / existing.target) * 100 : 0;
+      } else {
+        const pct = target > 0 ? ((bonded - target) / target) * 100 : 0;
+        baseMerge.set(basePkg, { package: basePkg, plan_per_shift: planPerShift, bonded, target, pct });
+      }
+    }
+  }
+
+  return [...mpcRows, ...baseMerge.values()].sort((a, b) => b.bonded - a.bonded);
 }

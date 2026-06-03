@@ -29,7 +29,8 @@ export function queryMachines(
                 WHERE r.machine_id = inner_q.machine_id
                   AND r.voided     = 0
                   AND r.uph        > 0
-                  AND COALESCE(r.package_mpc, CASE WHEN r.mpc IS NOT NULL AND LENGTH(r.mpc)>=9 THEN r.package||'('||SUBSTR(r.mpc,7,3)||')' ELSE r.package END) = @pkg
+                  AND (COALESCE(r.package_mpc, CASE WHEN r.mpc IS NOT NULL AND LENGTH(r.mpc)>=9 THEN r.package||'('||SUBSTR(r.mpc,7,3)||')' ELSE r.package END) = @pkg
+                       OR (INSTR(@pkg, '(') = 0 AND r.package = @pkg))
                   AND r.created_at >= @start
                   AND r.created_at <= @slot_end
                 ORDER BY r.created_at DESC LIMIT 1
@@ -65,7 +66,8 @@ export function queryMachines(
                 )) AS delta
          FROM uph_records main
          WHERE voided      = 0
-           AND COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) = @pkg
+           AND (COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) = @pkg
+                OR (INSTR(@pkg, '(') = 0 AND package = @pkg))
            AND created_at >= @start
            AND created_at <= @slot_end
          GROUP BY machine_id, lot_id
