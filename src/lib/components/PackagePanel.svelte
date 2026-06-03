@@ -34,6 +34,7 @@
       <div class="ph-pkg"></div>
       <div class="ph-bar"></div>
       <div class="ph-num">Plan/Shift</div>
+      <div class="ph-num">Target</div>
       <div class="ph-num">Output</div>
       <div class="ph-pct">vs Pace</div>
     </div>
@@ -54,6 +55,7 @@
             ></div>
           </div>
           <div class="num">{r.plan_per_shift > 0 ? fmtInt(r.plan_per_shift) : '—'}</div>
+          <div class="num muted">{r.target > 0 ? fmtInt(r.target) : '—'}</div>
           <div class="num strong">{fmtInt(r.bonded)}</div>
           <div class="pct" style:color={paceColor(r)}>
             {r.target > 0 ? fmtSignedPct(r.pct, 0) : '—'}
@@ -103,7 +105,7 @@
   .ph-row,
   .row {
     display: grid;
-    grid-template-columns: 80px 1fr 70px 70px 50px;
+    grid-template-columns: 80px 1fr 70px 70px 70px 52px;
     align-items: center;
     gap: 10px;
     font-size: 12px;
@@ -165,6 +167,9 @@
   .num.strong {
     color: var(--color-text-body);
     font-weight: 700;
+  }
+  .num.muted {
+    color: var(--color-text-disabled);
   }
   .pct {
     text-align: right;
