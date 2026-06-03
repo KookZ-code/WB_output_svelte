@@ -75,9 +75,10 @@
           <div class="bar-wrap">
             <div
               class="bar-fill"
-              style:width="{Math.min((r.bonded / maxBonded) * 100, 100)}%"
+              style:width="{Math.min(r.target > 0 ? (r.bonded / r.target) * 100 : 0, 110)}%"
               style:background={paceColor(r)}
             ></div>
+            <div class="bar-target-line"></div>
           </div>
           <div class="num">{r.plan_per_shift > 0 ? fmtInt(r.plan_per_shift) : '—'}</div>
           <div class="num muted">{r.target > 0 ? fmtInt(r.target) : '—'}</div>
@@ -189,6 +190,7 @@
     font-weight: 600;
   }
   .bar-wrap {
+    position: relative;
     background: var(--color-surface-gray);
     border-radius: var(--radius-sm);
     height: 14px;
@@ -197,7 +199,17 @@
   .bar-fill {
     height: 100%;
     border-radius: var(--radius-sm);
-    transition: width 0.4s;
+    transition: width 0.3s ease;
+  }
+  /* Target line at 100% mark — shows where "on pace" is */
+  .bar-target-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(100% / 110 * 100);
+    width: 2px;
+    background: var(--color-border-strong);
+    opacity: 0.6;
   }
   .num {
     text-align: right;
