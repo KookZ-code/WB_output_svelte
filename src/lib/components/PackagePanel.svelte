@@ -3,7 +3,7 @@
   // by pace (green ≥ on target, orange ≥ 70% of pro-rated target, else red).
   import type { PackageRow } from '$lib/types/dashboard';
   import { dashboard } from '$lib/stores/dashboard.svelte';
-  import { fmtInt } from '$lib/utils/format';
+  import { fmtInt, fmtSignedPct } from '$lib/utils/format';
 
   type Props = {
     rows: PackageRow[] | null;
@@ -35,7 +35,7 @@
       <div class="ph-bar"></div>
       <div class="ph-num">Plan/Shift</div>
       <div class="ph-num">Output</div>
-      <div class="ph-pct">% Plan</div>
+      <div class="ph-pct">vs Pace</div>
     </div>
     <div class="list">
       {#each rows as r (r.package)}
@@ -56,7 +56,7 @@
           <div class="num">{r.plan_per_shift > 0 ? fmtInt(r.plan_per_shift) : '—'}</div>
           <div class="num strong">{fmtInt(r.bonded)}</div>
           <div class="pct" style:color={paceColor(r)}>
-            {r.plan_per_shift > 0 ? r.pct.toFixed(0) + '%' : '—'}
+            {r.target > 0 ? fmtSignedPct(r.pct, 0) : '—'}
           </div>
         </button>
       {/each}

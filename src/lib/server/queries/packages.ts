@@ -62,7 +62,9 @@ export function queryPackages(
     const planRow = mpcPlanMap.get(pkg_key) ?? planMap.get(basePkg);
     const planPerShift = planRow?.plan_per_shift ?? 0;
     const target = planRow ? Math.trunc(planRow.plan_per_shift * hourFraction) : 0;
-    const pct = planPerShift > 0 ? (bonded / planPerShift) * 100 : 0;
+    // % deviation from the pro-rated target at this hour slot:
+    //   positive = ahead of pace, negative = behind pace
+    const pct = target > 0 ? ((bonded - target) / target) * 100 : 0;
     return {
       package: pkg_key,
       plan_per_shift: planPerShift,
