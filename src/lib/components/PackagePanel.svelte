@@ -5,12 +5,37 @@
   import { dashboard } from '$lib/stores/dashboard.svelte';
   import { fmtInt, fmtSignedPct } from '$lib/utils/format';
 
+  type SortCol = 'package' | 'plan_per_shift' | 'target' | 'bonded' | 'pct';
+
   type Props = {
     rows: PackageRow[] | null;
     hour: number | null;
     onSelect: (pkg: string) => void;
   };
   const { rows, hour, onSelect }: Props = $props();
+
+  let sortCol = $state<SortCol>('bonded');
+  let sortAsc = $state(false);
+
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) sortAsc = !sortAsc;
+    else { sortCol = col; sortAsc = col === 'package'; }
+  }
+
+  function sortIndicator(col: SortCol): string {
+    if (sortCol !== col) return '';
+    return sortAsc ? ' ↑' : ' ↓';
+  }
+
+  const sorted = $derived.by(() => {
+    if (!rows) return [];
+    return [...rows].sort((a, b) => {
+      let diff: number;
+      if (sortCol === 'package') diff = a.package.localeCompare(b.package);
+      else diff = (a[sortCol] as number) - (b[sortCol] as number);
+      return sortAsc ? diff : -diff;
+    });
+  });
 
   const maxBonded = $derived(rows && rows.length > 0 ? Math.max(...rows.map((r) => r.bonded), 1) : 1);
 
@@ -31,15 +56,15 @@
   <div class="active">
     <div class="label">▼ {hour}:00 hr — by Package</div>
     <div class="ph-row">
-      <div class="ph-pkg"></div>
+      <button class="ph-pkg ph-sort" onclick={() => toggleSort('package')}>Package{sortIndicator('package')}</button>
       <div class="ph-bar"></div>
-      <div class="ph-num">Plan/Shift</div>
-      <div class="ph-num">Target</div>
-      <div class="ph-num">Output</div>
-      <div class="ph-pct">vs Pace</div>
+      <button class="ph-num ph-sort" onclick={() => toggleSort('plan_per_shift')}>Plan/Shift{sortIndicator('plan_per_shift')}</button>
+      <button class="ph-num ph-sort" onclick={() => toggleSort('target')}>Target{sortIndicator('target')}</button>
+      <button class="ph-num ph-sort" onclick={() => toggleSort('bonded')}>Output{sortIndicator('bonded')}</button>
+      <button class="ph-pct ph-sort" onclick={() => toggleSort('pct')}>vs Pace{sortIndicator('pct')}</button>
     </div>
     <div class="list">
-      {#each rows as r (r.package)}
+      {#each sorted as r (r.package)}
         <button
           type="button"
           class="row"
@@ -122,6 +147,21 @@
   .ph-num,
   .ph-pct {
     text-align: right;
+  }
+  .ph-sort {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .ph-sort:hover {
+    color: var(--color-primary);
   }
   .list {
     display: flex;
