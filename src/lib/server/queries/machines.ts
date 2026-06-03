@@ -2,7 +2,7 @@
 
 import { db } from '../db';
 import { slotEndForHour, type ShiftWindow } from '../shift';
-import type { MachineRow, PlanRow } from '$lib/types/dashboard';
+import type { MachineRowDb, PlanRow } from '$lib/types/dashboard';
 
 export function queryMachines(
   w: ShiftWindow,
@@ -10,7 +10,7 @@ export function queryMachines(
   packageKey: string,
   planMap: Map<string, PlanRow>,
   mpcPlanMap: Map<string, PlanRow>
-): MachineRow[] {
+): MachineRowDb[] {
   const slotIdx = Math.max(0, w.hours.indexOf(hour));
   const slotEnd = slotEndForHour(w, slotIdx, hour);
   const hourFraction = (slotIdx + 1) / w.hours.length;

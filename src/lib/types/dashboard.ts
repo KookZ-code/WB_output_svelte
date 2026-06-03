@@ -31,13 +31,29 @@ export interface PackageRow {
   pct: number;
 }
 
-export interface MachineRow {
+export interface WbEvent {
+  job_type: string;
+  t_start: string;
+  t_end: string;   // empty string = still open/active
+  des_job: string;
+  dur_min: number;
+  is_open?: boolean; // true = currently active job from job_list
+}
+
+/** Fields returned directly from SQLite (queryMachines) */
+export interface MachineRowDb {
   machine_id: string;
   badge_no: string;
   target_uph: number;
   uph: number;
   bonded_unit: number;
   vs_output_pct: number; // (bonded − target_uph × elapsed_hours) / expected × 100
+}
+
+/** Full row after merging with WB Report utilization + events */
+export interface MachineRow extends MachineRowDb {
+  util_pct: number | null;
+  events: WbEvent[];
 }
 
 export interface MachinesResponse {

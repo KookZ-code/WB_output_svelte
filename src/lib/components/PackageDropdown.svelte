@@ -11,7 +11,9 @@
   let panelEl = $state<HTMLDivElement>();
   let btnEl = $state<HTMLButtonElement>();
 
-  const qfnPackages = $derived(packages.filter((p) => /QFN/i.test(p)));
+  const qfnPackages  = $derived(packages.filter((p) =>  /QFN/i.test(p)));
+  const leadPackages = $derived(packages.filter((p) => !/QFN/i.test(p)));
+
   const isAll = $derived(dashboard.pkgFilter.length === 0);
   const isQfn = $derived(
     !isAll &&
@@ -19,10 +21,17 @@
       dashboard.pkgFilter.length === qfnPackages.length &&
       qfnPackages.every((p) => dashboard.pkgFilter.includes(p))
   );
+  const isLead = $derived(
+    !isAll &&
+      leadPackages.length > 0 &&
+      dashboard.pkgFilter.length === leadPackages.length &&
+      leadPackages.every((p) => dashboard.pkgFilter.includes(p))
+  );
 
   const buttonLabel = $derived.by(() => {
-    if (isAll) return 'All Package ▾';
-    if (isQfn) return 'All QFN ▾';
+    if (isAll)   return 'All Package ▾';
+    if (isQfn)   return 'All QFN ▾';
+    if (isLead)  return 'All Lead ▾';
     const n = dashboard.pkgFilter.length;
     return `${n} package${n > 1 ? 's' : ''} ▾`;
   });
@@ -45,6 +54,11 @@
 
   function selectQfn() {
     dashboard.pkgFilter = [...qfnPackages];
+    onChange();
+  }
+
+  function selectLead() {
+    dashboard.pkgFilter = [...leadPackages];
     onChange();
   }
 
@@ -93,6 +107,12 @@
           <input type="checkbox" checked={isQfn} readonly tabindex="-1" />
           <span>All QFN</span>
         </button>
+        {#if leadPackages.length > 0}
+          <button type="button" class="pkg-option special" onclick={selectLead}>
+            <input type="checkbox" checked={isLead} readonly tabindex="-1" />
+            <span>All Lead</span>
+          </button>
+        {/if}
       </div>
       <div class="pkg-divider"></div>
       <div class="pkg-list">
