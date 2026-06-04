@@ -65,14 +65,11 @@ export const GET: RequestHandler = async ({ url }) => {
     ]);
 
     // Merge utilisation + events into each row
-    const merged = rows.map(r => {
-      const wb = wbMap.get(normId(r.machine_id));
-      return {
-        ...r,
-        util_pct: wb?.util_pct ?? null,
-        events:   wb?.events   ?? [],
-      };
-    });
+    const mergedBase = rows.map(r => ({
+      ...r,
+      util_pct: wbMap.get(normId(r.machine_id))?.util_pct ?? null,
+      events:   wbMap.get(normId(r.machine_id))?.events   ?? [],
+    }));
 
     const base = dbPkg.split('(')[0] ?? dbPkg;
     const planRow = plan.mpcPlanMap.get(dbPkg) ?? plan.planMap.get(base);
@@ -87,6 +84,20 @@ export const GET: RequestHandler = async ({ url }) => {
         ? Math.ceil(planPerShift / (targetUph * shiftHours))
         : 0;
     const target_bonded = Math.trunc(planPerShift * hourFraction);
+
+    // vs_output_pct = (output - expected_per_machine) / expected_per_machine
+    // expected_per_machine = target_bonded / reporting machines
+    const expectedPerMachine =
+      target_bonded > 0 && mergedBase.length > 0
+        ? Math.trunc(target_bonded / mergedBase.length)
+        : 0;
+    const merged = mergedBase.map(r => ({
+      ...r,
+      vs_output_pct:
+        expectedPerMachine > 0
+          ? ((r.bonded_unit - expectedPerMachine) / expectedPerMachine) * 100
+          : 0,
+    }));
 
     return json({ rows: merged, required_mc, target_bonded });
   } catch (e) {
