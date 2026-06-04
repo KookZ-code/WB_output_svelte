@@ -48,6 +48,7 @@ export interface MachineRowDb {
   uph: number;
   bonded_unit: number;
   vs_output_pct: number; // (bonded − target_uph × elapsed_hours) / expected × 100
+  last_scan_ts: string | null; // "YYYY-MM-DD HH:MM:SS" of the latest in-slot scan
 }
 
 /** Full row after merging with WB Report utilization + events */

@@ -94,6 +94,7 @@ export function queryMachines(
     bonded: number;
     latestUphTs: string;
     latestUph: number;
+    lastScanTs: string;
     badge: string;
     pkgMpc: string;
   }
@@ -119,16 +120,17 @@ export function queryMachines(
     if (agg) {
       agg.bonded += delta;
     } else {
-      machineAgg.set(s.machine, { bonded: delta, latestUphTs: '', latestUph: 0, badge: '', pkgMpc: '' });
+      machineAgg.set(s.machine, { bonded: delta, latestUphTs: '', latestUph: 0, lastScanTs: '', badge: '', pkgMpc: '' });
     }
   }
 
-  // Fill latest UPH, badge, pkg_mpc from raw rows (time-ordered → last wins)
+  // Fill latest UPH, badge, pkg_mpc, lastScanTs from raw rows (time-ordered → last wins)
   for (const r of raw) {
     const agg = machineAgg.get(r.machine_id);
     if (!agg) continue;
     if (r.badge_no) agg.badge = r.badge_no;
     if (r.pkg_mpc) agg.pkgMpc = r.pkg_mpc;
+    if (r.created_at > agg.lastScanTs) agg.lastScanTs = r.created_at;
     if (r.uph > 0) { agg.latestUph = r.uph; agg.latestUphTs = r.created_at; }
   }
 
@@ -149,6 +151,7 @@ export function queryMachines(
         uph: agg.latestUph,
         bonded_unit: agg.bonded,
         vs_output_pct: vsOutputPct,
+        last_scan_ts: agg.lastScanTs || null,
       };
     })
     .sort((a, b) => b.bonded_unit - a.bonded_unit);

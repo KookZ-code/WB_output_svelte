@@ -200,6 +200,7 @@
             <th class="r">Expected</th>
             <th class="r">Bonded</th>
             <th class="r">Output vs Expected</th>
+            <th class="r">Last Update</th>
             {#if hasUtil}
               <th>Status</th>
               <th class="r">Utilization</th>
@@ -222,6 +223,7 @@
                   {fmtSignedPct(r.vs_output_pct, 0)}
                 </span>
               </td>
+              <td class="r muted">{r.last_scan_ts ? r.last_scan_ts.slice(11, 16) : '—'}</td>
 
               {#if hasUtil}
                 <!-- Status indicator -->
