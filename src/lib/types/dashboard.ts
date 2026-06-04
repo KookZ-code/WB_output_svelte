@@ -15,6 +15,7 @@ export interface SummaryResponse {
   achievement_pct: number;
   active_machines: number;
   active_operators: number;
+  daily_bonded: number; // D shift + N shift total for the same date
 }
 
 export interface HourlyResponse {

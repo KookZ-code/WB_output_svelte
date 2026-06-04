@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { getPlan } from '$lib/server/plan-cache';
 import { querySummary } from '$lib/server/queries/summary';
 import { displayToDb, parsePkgFilter, resolveShift } from '$lib/server/handler-utils';
+import { shiftWindow } from '$lib/server/shift';
 import type { SummaryResponse } from '$lib/types/dashboard';
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -16,6 +17,17 @@ export const GET: RequestHandler = async ({ url }) => {
   } catch (e) {
     error(503, `DB error: ${e instanceof Error ? e.message : String(e)}`);
   }
+
+  // Daily total = this shift + the other shift of the same date
+  const otherShift = shift === 'D' ? 'N' : 'D';
+  const otherWindow = shiftWindow(date, otherShift);
+  let otherBonded = 0;
+  try {
+    otherBonded = querySummary(otherWindow, pkgFilter).total_bonded;
+  } catch {
+    // non-fatal — daily total degrades to this shift only
+  }
+  const daily_bonded = data.total_bonded + otherBonded;
 
   // Target shift total — sum of plan_per_shift for the relevant packages.
   let targetShift: number;
@@ -47,6 +59,7 @@ export const GET: RequestHandler = async ({ url }) => {
     achievement_pct: achievementPct,
     active_machines: data.active_machines,
     active_operators: data.active_operators,
+    daily_bonded,
   };
   return json(body);
 };

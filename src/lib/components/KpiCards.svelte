@@ -58,12 +58,21 @@
     </div>
     <div class="sub">reporting this shift</div>
   </article>
+
+  <article class="kpi-card" data-tone="purple">
+    <span class="accent"></span>
+    <div class="label">Total Output (Per Day)</div>
+    <div class="value" data-tone="purple">
+      {summary ? fmtInt(summary.daily_bonded) : '—'}
+    </div>
+    <div class="sub">D + N shift · {summary?.date ?? '—'}</div>
+  </article>
 </section>
 
 <style>
   .kpi-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 14px;
     padding: 16px 24px 0;
     max-width: var(--content-max);
@@ -94,6 +103,9 @@
   }
   .kpi-card[data-tone='orange'] .accent {
     background: var(--color-accent-orange);
+  }
+  .kpi-card[data-tone='purple'] .accent {
+    background: #7c3aed;
   }
   .kpi-card[data-tone='red'] .accent {
     background: var(--color-brand-red);
@@ -127,11 +139,19 @@
   .value[data-tone='blue'] {
     color: var(--color-primary-hover);
   }
+  .value[data-tone='purple'] {
+    color: #7c3aed;
+  }
   .sub {
     font-size: 12px;
     color: var(--color-text-muted);
   }
 
+  @media (max-width: 1280px) {
+    .kpi-row {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
   @media (max-width: 1024px) {
     .kpi-row {
       grid-template-columns: repeat(2, 1fr);
