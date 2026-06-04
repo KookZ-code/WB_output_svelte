@@ -29,6 +29,7 @@
   let packageRows = $state<PackageRow[] | null>(null);
   let machineRows = $state<MachineRow[] | null>(null);
   let requiredMc = $state<number>(0);
+  let targetBonded = $state<number>(0);
   let recordRows = $state<RawRecord[] | null>(null);
 
   let packagesList = $state<string[]>([]);
@@ -91,6 +92,7 @@
       );
       machineRows = res.rows;
       requiredMc = res.required_mc;
+      targetBonded = res.target_bonded;
     } catch (e) {
       console.error(e);
     }
@@ -167,7 +169,7 @@
 
 <section class="drill-row">
   <PackagePanel rows={packageRows} hour={dashboard.selectedHour} onSelect={selectPkg} />
-  <MachineTable rows={machineRows} pkg={dashboard.selectedPkg} {requiredMc} onSelect={selectMachine} />
+  <MachineTable rows={machineRows} pkg={dashboard.selectedPkg} {requiredMc} {targetBonded} onSelect={selectMachine} />
 </section>
 
 <section class="drill-records">

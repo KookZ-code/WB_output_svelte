@@ -74,18 +74,21 @@ export const GET: RequestHandler = async ({ url }) => {
       };
     });
 
-    // Required M/C = ⌈plan_per_shift / (target_uph × shift_hours)⌉
     const base = dbPkg.split('(')[0] ?? dbPkg;
     const planRow = plan.mpcPlanMap.get(dbPkg) ?? plan.planMap.get(base);
     const targetUph = planRow?.uph_target ?? 0;
     const planPerShift = planRow?.plan_per_shift ?? 0;
     const shiftHours = w.hours.length;
+    const slotIdx = Math.max(0, w.hours.indexOf(hour));
+    const hourFraction = (slotIdx + 1) / shiftHours;
+
     const required_mc =
       targetUph > 0 && planPerShift > 0
         ? Math.ceil(planPerShift / (targetUph * shiftHours))
         : 0;
+    const target_bonded = Math.trunc(planPerShift * hourFraction);
 
-    return json({ rows: merged, required_mc });
+    return json({ rows: merged, required_mc, target_bonded });
   } catch (e) {
     error(503, `DB error: ${e instanceof Error ? e.message : String(e)}`);
   }

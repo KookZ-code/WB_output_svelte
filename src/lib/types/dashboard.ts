@@ -58,7 +58,8 @@ export interface MachineRow extends MachineRowDb {
 
 export interface MachinesResponse {
   rows: MachineRow[];
-  required_mc: number; // ⌈plan_per_shift / (target_uph × shift_hours)⌉
+  required_mc: number;   // ⌈plan_per_shift / (target_uph × shift_hours)⌉
+  target_bonded: number; // Math.trunc(plan_per_shift × hourFraction) — pro-rated at this hour
 }
 
 export interface RawRecord {

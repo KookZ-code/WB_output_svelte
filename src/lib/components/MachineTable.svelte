@@ -8,9 +8,17 @@
     rows: MachineRow[] | null;
     pkg: string | null;
     requiredMc: number;
+    targetBonded: number;
     onSelect: (machineId: string) => void;
   };
-  const { rows, pkg, requiredMc, onSelect }: Props = $props();
+  const { rows, pkg, requiredMc, targetBonded, onSelect }: Props = $props();
+
+  // Expected output per machine = pro-rated target ÷ number of reporting machines
+  const expectedPerMachine = $derived(
+    targetBonded > 0 && (rows?.length ?? 0) > 0
+      ? Math.trunc(targetBonded / (rows?.length ?? 1))
+      : 0
+  );
 
   const reportingMc = $derived(rows?.length ?? 0);
   const mcDelta     = $derived(reportingMc - requiredMc);
@@ -189,9 +197,7 @@
         <thead>
           <tr>
             <th>Machine</th>
-            <th>Operator</th>
-            <th class="r">Target UPH</th>
-            <th class="r">Actual UPH</th>
+            <th class="r">Expected</th>
             <th class="r">Bonded</th>
             <th class="r">Output vs Expected</th>
             {#if hasUtil}
@@ -209,11 +215,7 @@
               onclick={() => onSelect(r.machine_id)}
             >
               <td><strong>{r.machine_id}</strong></td>
-              <td>{r.badge_no}</td>
-              <td class="r muted">{r.target_uph > 0 ? fmtInt(r.target_uph) : '—'}</td>
-              <td class="r" style:color={uphColor(r)} style:font-weight="700">
-                {fmtInt(r.uph)}
-              </td>
+              <td class="r muted">{expectedPerMachine > 0 ? fmtInt(expectedPerMachine) : '—'}</td>
               <td class="r">{fmtInt(r.bonded_unit)}</td>
               <td class="r">
                 <span class="badge {badgeClass(r.vs_output_pct)}">
