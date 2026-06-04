@@ -50,7 +50,8 @@ export function queryRecords(w: ShiftWindow, machineId: string, packageKey: stri
          WHERE voided     = 0
            AND machine_id = @machine
            AND (COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) = @pkg
-                OR (INSTR(@pkg, '(') = 0 AND machine_id = @machine AND package = @pkg))
+                OR (machine_id = @machine AND package = @pkg
+                    AND (package_mpc IS NULL OR package_mpc LIKE @pkg || '(%')))
            AND created_at >= @start
            AND created_at <= @end
      )

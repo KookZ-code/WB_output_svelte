@@ -39,10 +39,15 @@ export function queryMachines(
   }
 
   // All in-slot records for this package, ordered by time
+  // Base key (no parens, e.g. "8SOIC") must also catch MPC variants like "8SOIC(C2X)"
+  // but must NOT bleed into space-qualified variants like "8SOIC IDF" or "44TQFP HD"
+  // which share the same `package` column value. Guard: package_mpc IS NULL (MPC code
+  // comes from the `mpc` field, not package_mpc) or package_mpc LIKE 'BASE(%'.
   const pkgFilter =
     packageKey.includes('(')
       ? `AND (COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) = @pkg)`
-      : `AND (COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) = @pkg OR package = @pkg)`;
+      : `AND (COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) = @pkg
+             OR (package = @pkg AND (package_mpc IS NULL OR package_mpc LIKE @pkg || '(%')))`;
 
   const raw = conn
     .prepare(
