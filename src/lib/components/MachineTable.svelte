@@ -198,7 +198,7 @@
           <tr>
             <th>Machine</th>
             <th class="r">Expected</th>
-            <th class="r">Bonded</th>
+            <th class="r">Output Units</th>
             <th class="r">Output vs Expected</th>
             <th class="r">Last Update</th>
             {#if hasUtil}
