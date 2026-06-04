@@ -1,7 +1,15 @@
 // Port of WB_Dashboard/src/db.rs query_machines
+//
+// Uses the same reset-aware approach as hourly.ts: load all in-slot records
+// once, build per-(machine,lot) bonded series, apply resetAwareTotal.
+// The old MAX(bonded_unit)-baseline formula silently dropped all production
+// after a capillary change whose counter reset was straddled between shifts
+// (pre-shift baseline ≥ in-shift MAX → delta clamps to 0). See
+// docs/discussion/cap-reset-output.md.
 
 import { db } from '../db';
-import { slotEndForHour, type ShiftWindow } from '../shift';
+import { slotEndForHour, parseSqlTs, type ShiftWindow } from '../shift';
+import { resetAwareTotal } from './delta';
 import type { MachineRowDb, PlanRow } from '$lib/types/dashboard';
 
 export function queryMachines(
@@ -11,97 +19,137 @@ export function queryMachines(
   planMap: Map<string, PlanRow>,
   mpcPlanMap: Map<string, PlanRow>
 ): MachineRowDb[] {
+  const conn = db();
   const slotIdx = Math.max(0, w.hours.indexOf(hour));
   const slotEnd = slotEndForHour(w, slotIdx, hour);
-  const hourFraction = (slotIdx + 1) / w.hours.length;
 
-  const baseUphTarget = planMap.get(packageKey)?.uph_target ?? 0;
-  const targetBonded = planMap.get(packageKey)
-    ? Math.trunc((planMap.get(packageKey)?.plan_per_shift ?? 0) * hourFraction)
-    : 0;
+  // Pre-shift baselines: latest bonded_unit per (machine, lot) before shift start
+  const preRows = conn
+    .prepare(
+      `SELECT machine_id, lot_id, bonded_unit
+       FROM uph_records
+       WHERE voided = 0 AND created_at < @start
+       ORDER BY machine_id, lot_id, created_at DESC`
+    )
+    .all({ start: w.start }) as Array<{ machine_id: string; lot_id: string; bonded_unit: number }>;
+  const preBaselines = new Map<string, number>();
+  for (const r of preRows) {
+    const k = `${r.machine_id}${r.lot_id}`;
+    if (!preBaselines.has(k)) preBaselines.set(k, r.bonded_unit);
+  }
 
-  const sql = `SELECT
-            inner_q.machine_id,
-            MAX(inner_q.badge_no)   AS badge_no,
-            COALESCE((
-                SELECT r.uph
-                FROM uph_records r
-                WHERE r.machine_id = inner_q.machine_id
-                  AND r.voided     = 0
-                  AND r.uph        > 0
-                  AND (COALESCE(r.package_mpc, CASE WHEN r.mpc IS NOT NULL AND LENGTH(r.mpc)>=9 THEN r.package||'('||SUBSTR(r.mpc,7,3)||')' ELSE r.package END) = @pkg
-                       OR (INSTR(@pkg, '(') = 0 AND r.package = @pkg))
-                  AND r.created_at >= @start
-                  AND r.created_at <= @slot_end
-                ORDER BY r.created_at DESC LIMIT 1
-            ), 0)                   AS avg_uph,
-            COALESCE(SUM(inner_q.delta), 0) AS bonded,
-            MAX(inner_q.pkg_mpc)    AS pkg_mpc
-     FROM (
-         SELECT machine_id, lot_id,
-                MAX(badge_no)            AS badge_no,
-                COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) AS pkg_mpc,
-                MAX(0, MAX(bonded_unit) - COALESCE(
-                    (SELECT bonded_unit FROM uph_records pre
-                     WHERE pre.machine_id = main.machine_id
-                       AND pre.lot_id     = main.lot_id
-                       AND pre.voided     = 0
-                       AND pre.created_at < @start
-                     ORDER BY pre.created_at DESC LIMIT 1),
-                    (SELECT
-                        CASE
-                            WHEN (julianday(f.created_at) - julianday(@start)) > 0
-                             AND f.bonded_unit /
-                                 ((julianday(f.created_at) - julianday(@start)) * 24.0) > f.uph * 2
-                            THEN f.bonded_unit
-                            ELSE 0
-                        END
-                     FROM uph_records f
-                     WHERE f.machine_id = main.machine_id
-                       AND f.lot_id     = main.lot_id
-                       AND f.voided     = 0
-                       AND f.created_at >= @start
-                       AND f.created_at <= @slot_end
-                     ORDER BY f.created_at ASC LIMIT 1)
-                )) AS delta
-         FROM uph_records main
-         WHERE voided      = 0
-           AND (COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) = @pkg
-                OR (INSTR(@pkg, '(') = 0 AND package = @pkg))
-           AND created_at >= @start
-           AND created_at <= @slot_end
-         GROUP BY machine_id, lot_id
-     ) inner_q
-     GROUP BY inner_q.machine_id
-     ORDER BY bonded DESC`;
+  // All in-slot records for this package, ordered by time
+  const pkgFilter =
+    packageKey.includes('(')
+      ? `AND (COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) = @pkg)`
+      : `AND (COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9 THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) = @pkg OR package = @pkg)`;
 
-  const rows = db()
-    .prepare(sql)
+  const raw = conn
+    .prepare(
+      `SELECT machine_id, lot_id, bonded_unit, created_at, uph,
+              COALESCE(badge_no, '')  AS badge_no,
+              COALESCE(package_mpc, CASE WHEN mpc IS NOT NULL AND LENGTH(mpc)>=9
+                       THEN package||'('||SUBSTR(mpc,7,3)||')' ELSE package END) AS pkg_mpc
+       FROM uph_records
+       WHERE voided = 0
+         AND created_at >= @start
+         AND created_at <= @slot_end
+         ${pkgFilter}
+       ORDER BY created_at`
+    )
     .all({ start: w.start, slot_end: slotEnd, pkg: packageKey }) as Array<{
     machine_id: string;
+    lot_id: string;
+    bonded_unit: number;
+    created_at: string;
+    uph: number;
     badge_no: string;
-    avg_uph: number;
-    bonded: number;
-    pkg_mpc: string | null;
+    pkg_mpc: string;
   }>;
 
-  // elapsed_hours = number of complete 1-hour slots up to and including the
-  // selected slot (slotIdx is 0-based, so slot 0 = first hour = 1 elapsed hour).
-  const elapsedHours = slotIdx + 1;
+  // Build per-(machine, lot) series (time-ordered — rows already sorted)
+  interface Series {
+    machine: string;
+    lot: string;
+    bonded: number[];
+    firstTs: string;
+    firstBonded: number;
+    firstUph: number;
+  }
+  const seriesMap = new Map<string, Series>();
+  for (const r of raw) {
+    const key = `${r.machine_id}\0${r.lot_id}`;
+    let s = seriesMap.get(key);
+    if (!s) {
+      s = { machine: r.machine_id, lot: r.lot_id, bonded: [], firstTs: r.created_at, firstBonded: r.bonded_unit, firstUph: r.uph };
+      seriesMap.set(key, s);
+    }
+    s.bonded.push(r.bonded_unit);
+  }
 
-  return rows.map((r) => {
-    const uphTarget = r.pkg_mpc ? mpcPlanMap.get(r.pkg_mpc)?.uph_target ?? baseUphTarget : baseUphTarget;
-    // Expected cumulative output = target UPH × hours elapsed in shift so far.
-    const expectedBonded = uphTarget * elapsedHours;
-    const vsOutputPct =
-      expectedBonded > 0 ? ((r.bonded - expectedBonded) / expectedBonded) * 100 : 0;
-    return {
-      machine_id: r.machine_id,
-      badge_no: r.badge_no,
-      target_uph: uphTarget,
-      uph: r.avg_uph,
-      bonded_unit: r.bonded,
-      vs_output_pct: vsOutputPct,
-    };
-  });
+  const startMs = parseSqlTs(w.start);
+
+  // Aggregate per machine: reset-aware output, latest non-zero UPH, badge, pkg_mpc
+  interface Agg {
+    bonded: number;
+    latestUphTs: string;
+    latestUph: number;
+    badge: string;
+    pkgMpc: string;
+  }
+  const machineAgg = new Map<string, Agg>();
+
+  for (const s of seriesMap.values()) {
+    const preKey = `${s.machine}${s.lot}`;
+    let baseline: number;
+    const pre = preBaselines.get(preKey);
+    if (pre !== undefined) {
+      baseline = pre;
+    } else {
+      const elapsedH = (parseSqlTs(s.firstTs) - startMs) / 3_600_000;
+      if (elapsedH > 0 && s.firstUph > 0) {
+        const implied = s.firstBonded / elapsedH;
+        baseline = implied > s.firstUph * 2 ? s.firstBonded : 0;
+      } else {
+        baseline = 0;
+      }
+    }
+    const delta = resetAwareTotal(baseline, s.bonded);
+    const agg = machineAgg.get(s.machine);
+    if (agg) {
+      agg.bonded += delta;
+    } else {
+      machineAgg.set(s.machine, { bonded: delta, latestUphTs: '', latestUph: 0, badge: '', pkgMpc: '' });
+    }
+  }
+
+  // Fill latest UPH, badge, pkg_mpc from raw rows (time-ordered → last wins)
+  for (const r of raw) {
+    const agg = machineAgg.get(r.machine_id);
+    if (!agg) continue;
+    if (r.badge_no) agg.badge = r.badge_no;
+    if (r.pkg_mpc) agg.pkgMpc = r.pkg_mpc;
+    if (r.uph > 0) { agg.latestUph = r.uph; agg.latestUphTs = r.created_at; }
+  }
+
+  const elapsedHours = slotIdx + 1;
+  const baseUphTarget = planMap.get(packageKey)?.uph_target ?? 0;
+
+  return [...machineAgg.entries()]
+    .map(([machine_id, agg]) => {
+      const uphTarget = agg.pkgMpc
+        ? mpcPlanMap.get(agg.pkgMpc)?.uph_target ?? baseUphTarget
+        : baseUphTarget;
+      const expectedBonded = uphTarget * elapsedHours;
+      const vsOutputPct = expectedBonded > 0 ? ((agg.bonded - expectedBonded) / expectedBonded) * 100 : 0;
+      return {
+        machine_id,
+        badge_no: agg.badge,
+        target_uph: uphTarget,
+        uph: agg.latestUph,
+        bonded_unit: agg.bonded,
+        vs_output_pct: vsOutputPct,
+      };
+    })
+    .sort((a, b) => b.bonded_unit - a.bonded_unit);
 }
