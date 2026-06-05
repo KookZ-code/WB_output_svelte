@@ -20,6 +20,38 @@
       : 0
   );
 
+  // ── Sortable columns ──────────────────────────────────────────────────────
+  type SortCol = 'machine_id' | 'bonded_unit' | 'vs_output_pct' | 'last_scan_ts' | 'util_pct';
+
+  let sortCol = $state<SortCol>('bonded_unit');
+  let sortAsc = $state(false);
+
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) sortAsc = !sortAsc;
+    else { sortCol = col; sortAsc = col === 'machine_id' || col === 'last_scan_ts'; }
+  }
+
+  function si(col: SortCol): string {
+    return sortCol === col ? (sortAsc ? ' ↑' : ' ↓') : '';
+  }
+
+  const sorted = $derived.by(() => {
+    if (!rows) return [];
+    return [...rows].sort((a, b) => {
+      let diff: number;
+      if (sortCol === 'machine_id') {
+        diff = a.machine_id.localeCompare(b.machine_id);
+      } else if (sortCol === 'last_scan_ts') {
+        diff = (a.last_scan_ts ?? '').localeCompare(b.last_scan_ts ?? '');
+      } else if (sortCol === 'util_pct') {
+        diff = (a.util_pct ?? -1) - (b.util_pct ?? -1);
+      } else {
+        diff = (a[sortCol] as number) - (b[sortCol] as number);
+      }
+      return sortAsc ? diff : -diff;
+    });
+  });
+
   const reportingMc = $derived(rows?.length ?? 0);
   const mcDelta     = $derived(reportingMc - requiredMc);
   const mcTone      = $derived(
@@ -196,20 +228,20 @@
       <table>
         <thead>
           <tr>
-            <th>Machine</th>
+            <th><button class="th-sort" onclick={() => toggleSort('machine_id')}>Machine{si('machine_id')}</button></th>
             <th class="r">Expected</th>
-            <th class="r">Output Units</th>
-            <th class="r">Output vs Expected</th>
-            <th class="r">Last Update</th>
+            <th class="r"><button class="th-sort" onclick={() => toggleSort('bonded_unit')}>Output Units{si('bonded_unit')}</button></th>
+            <th class="r"><button class="th-sort" onclick={() => toggleSort('vs_output_pct')}>Output vs Expected{si('vs_output_pct')}</button></th>
+            <th class="r"><button class="th-sort" onclick={() => toggleSort('last_scan_ts')}>Last Update{si('last_scan_ts')}</button></th>
             {#if hasUtil}
               <th>Status</th>
-              <th class="r">Utilization</th>
+              <th class="r"><button class="th-sort" onclick={() => toggleSort('util_pct')}>Utilization{si('util_pct')}</button></th>
               <th>Events in Shift</th>
             {/if}
           </tr>
         </thead>
         <tbody>
-          {#each rows as r (r.machine_id)}
+          {#each sorted as r (r.machine_id)}
             <tr
               class:selected={r.machine_id === dashboard.selectedMachine}
               class:row-low={r.util_pct !== null && r.util_pct < 85}
@@ -364,6 +396,12 @@
     font-weight: 700; padding: 8px 10px; text-align: left;
     border-bottom: 1px solid var(--color-border); white-space: nowrap;
   }
+  .th-sort {
+    background: none; border: none; padding: 0; font: inherit;
+    color: inherit; letter-spacing: inherit; text-transform: inherit;
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  .th-sort:hover { color: var(--color-primary); }
   td { padding: 7px 10px; border-bottom: 1px solid var(--color-surface-gray); vertical-align: middle; }
   tbody tr { cursor: pointer; }
   tbody tr:hover  { background: var(--color-surface-alt); }
