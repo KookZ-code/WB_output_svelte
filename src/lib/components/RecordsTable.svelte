@@ -193,7 +193,7 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 50vh;
+    max-height: 92vh;
     background: var(--color-surface);
     border-top: 2px solid var(--color-accent-blue);
     box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
@@ -233,8 +233,7 @@
   .close-btn:hover { background: var(--color-surface-gray); color: var(--color-text-body); }
 
   .drawer-body {
-    flex: 1;
-    overflow-y: auto;
+    overflow-y: visible;
     padding: 0;
   }
   .empty-state {
