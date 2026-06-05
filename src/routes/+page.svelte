@@ -134,6 +134,8 @@
     if (dashboard.selectedHour != null) fetchMachines(dashboard.selectedHour, pkg);
   }
 
+  let drillRowEl = $state<HTMLElement | null>(null);
+
   function selectMachine(machineId: string) {
     dashboard.selectedMachine = machineId;
     if (dashboard.selectedHour != null && dashboard.selectedPkg != null) {
@@ -141,6 +143,15 @@
       fetchRecords(machineId, dashboard.selectedPkg);
     }
   }
+
+  // When drawer opens, scroll so the machine table sits at the top of the
+  // visible area — leaving the bottom 50 vh clear for the drawer.
+  $effect(() => {
+    if (drawerOpen && drillRowEl) {
+      const top = drillRowEl.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: Math.max(0, top - 12), behavior: 'smooth' });
+    }
+  });
 
   function closeDrawer() {
     drawerOpen = false;
@@ -184,7 +195,7 @@
 
 <MainChart {hourly} title={chartTitle} onSelectHour={selectHour} />
 
-<section class="drill-row">
+<section class="drill-row" bind:this={drillRowEl}>
   <PackagePanel rows={packageRows} hour={dashboard.selectedHour} onSelect={selectPkg} />
   <MachineTable rows={machineRows} pkg={dashboard.selectedPkg} {requiredMc} {targetBonded} onSelect={selectMachine} />
 </section>
