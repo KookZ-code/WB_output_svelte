@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getPlan } from '$lib/server/plan-cache';
-import { queryRecords } from '$lib/server/queries/records';
+import { queryRecords, queryPrevTailRecords } from '$lib/server/queries/records';
 import { displayToDb, resolveShift } from '$lib/server/handler-utils';
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -16,8 +16,11 @@ export const GET: RequestHandler = async ({ url }) => {
   const dbPkg = displayToDb(pkg, plan.displayNames);
 
   try {
-    const rows = queryRecords(w, machineId, dbPkg);
-    return json(rows);
+    const [current, prev_tail] = [
+      queryRecords(w, machineId, dbPkg),
+      queryPrevTailRecords(w, machineId, dbPkg, 5),
+    ];
+    return json({ current, prev_tail });
   } catch (e) {
     error(503, `DB error: ${e instanceof Error ? e.message : String(e)}`);
   }

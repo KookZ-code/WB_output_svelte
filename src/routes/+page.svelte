@@ -13,6 +13,7 @@
     MachineRow,
     MachinesResponse,
     RawRecord,
+    RecordsResponse,
   } from '$lib/types/dashboard';
 
   import DashboardHeader from '$lib/components/DashboardHeader.svelte';
@@ -31,6 +32,8 @@
   let requiredMc = $state<number>(0);
   let targetBonded = $state<number>(0);
   let recordRows = $state<RawRecord[] | null>(null);
+  let prevTailRows = $state<RawRecord[]>([]);
+  let drawerOpen = $state(false);
 
   let packagesList = $state<string[]>([]);
   let loading = $state(false);
@@ -103,9 +106,12 @@
       `date=${dashboard.date}&shift=${dashboard.shift}` +
       `&machine_id=${encodeURIComponent(machineId)}&package=${encodeURIComponent(pkg)}`;
     try {
-      recordRows = await fetch(`${base}/api/records?${qs}`).then(
-        (r) => r.json() as Promise<RawRecord[]>
+      const res = await fetch(`${base}/api/records?${qs}`).then(
+        (r) => r.json() as Promise<RecordsResponse>
       );
+      recordRows = res.current;
+      prevTailRows = res.prev_tail;
+      drawerOpen = true;
     } catch (e) {
       console.error(e);
     }
@@ -131,11 +137,22 @@
   function selectMachine(machineId: string) {
     dashboard.selectedMachine = machineId;
     if (dashboard.selectedHour != null && dashboard.selectedPkg != null) {
-      // Re-fetch machine list to update row highlight, then records
       fetchMachines(dashboard.selectedHour, dashboard.selectedPkg);
       fetchRecords(machineId, dashboard.selectedPkg);
     }
   }
+
+  function closeDrawer() {
+    drawerOpen = false;
+    dashboard.selectedMachine = null;
+    recordRows = null;
+    prevTailRows = [];
+  }
+
+  // Derive the events for the currently selected machine
+  const selectedMachineEvents = $derived(
+    machineRows?.find(r => r.machine_id === dashboard.selectedMachine)?.events ?? []
+  );
 
   function onFiltersChanged() {
     resetDrilldown();
@@ -172,9 +189,15 @@
   <MachineTable rows={machineRows} pkg={dashboard.selectedPkg} {requiredMc} {targetBonded} onSelect={selectMachine} />
 </section>
 
-<section class="drill-records">
-  <RecordsTable rows={recordRows} machineId={dashboard.selectedMachine} />
-</section>
+<RecordsTable
+  rows={recordRows}
+  prevTail={prevTailRows}
+  events={selectedMachineEvents}
+  machineId={dashboard.selectedMachine}
+  shiftStart={summary?.window_start ?? ''}
+  open={drawerOpen}
+  onClose={closeDrawer}
+/>
 
 <style>
   .drill-row {
@@ -182,12 +205,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 14px;
     padding: 16px 24px 0;
-    max-width: var(--content-max);
-    margin: 0 auto;
-    width: 100%;
-  }
-  .drill-records {
-    padding: 16px 24px 24px;
     max-width: var(--content-max);
     margin: 0 auto;
     width: 100%;

@@ -74,6 +74,11 @@ export interface RawRecord {
   badge_no: string;
 }
 
+export interface RecordsResponse {
+  current:   RawRecord[];
+  prev_tail: RawRecord[]; // last 5 records from the previous shift (for boundary analysis)
+}
+
 // Internal plan row (server-side only)
 export interface PlanRow {
   package_raw: string;
