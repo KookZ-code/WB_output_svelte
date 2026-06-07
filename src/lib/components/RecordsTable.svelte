@@ -25,15 +25,20 @@
   // Convert WbEvent t_start "HH:MM" → full timestamp using shiftStart date
   function eventTs(t: string): string {
     if (!shiftStart || !t) return '';
-    const date     = shiftStart.slice(0, 10);
+    const date      = shiftStart.slice(0, 10);
     const shiftHour = Number(shiftStart.slice(11, 13));
     const evHour    = Number(t.slice(0, 2));
     let d = date;
-    // Night shift: events with HH < 07 belong to the next calendar day
+    // Night shift: events with HH < 07 belong to the next calendar day.
+    // Use local date arithmetic (getFullYear/Month/Date) — NOT toISOString()
+    // which returns a UTC date and will be one day behind in UTC+7 timezone.
     if (shiftHour >= 19 && evHour < 7) {
       const dt = new Date(date + 'T00:00:00');
       dt.setDate(dt.getDate() + 1);
-      d = dt.toISOString().slice(0, 10);
+      const y  = dt.getFullYear();
+      const m  = String(dt.getMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getDate()).padStart(2, '0');
+      d = `${y}-${m}-${dd}`;
     }
     return `${d} ${t}:00`;
   }
