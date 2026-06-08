@@ -8,7 +8,12 @@
   let data       = $state<MonitorResponse | null>(null);
   let loading    = $state(true);
   let lastFetch  = $state('');
-  let pkgFilter  = $state('');
+  let pkgFilter    = $state('');
+  let statusFilter = $state<MonitorRow['status'] | null>(null);
+
+  function toggleStatus(s: MonitorRow['status']) {
+    statusFilter = statusFilter === s ? null : s;
+  }
 
   // Derive date/shift from URL params on mount
   let dateParam  = $state('');
@@ -30,8 +35,11 @@
 
   const filtered = $derived.by(() => {
     if (!data) return [];
-    if (!pkgFilter) return data.rows;
-    return data.rows.filter(r => r.package.toLowerCase().includes(pkgFilter.toLowerCase()));
+    return data.rows.filter(r => {
+      if (statusFilter && r.status !== statusFilter) return false;
+      if (pkgFilter && !r.package.toLowerCase().includes(pkgFilter.toLowerCase())) return false;
+      return true;
+    });
   });
 
   const counts = $derived({
@@ -86,22 +94,22 @@
 
   <!-- ── KPI strip ───────────────────────────────────────────────────── -->
   <div class="kpi-strip">
-    <div class="kpi-chip no-data">
+    <button class="kpi-chip no-data" class:selected={statusFilter === 'no_data'} onclick={() => toggleStatus('no_data')}>
       <span class="kpi-num">{counts.no_data}</span>
       <span class="kpi-lbl">No Data</span>
-    </div>
-    <div class="kpi-chip stale">
+    </button>
+    <button class="kpi-chip stale" class:selected={statusFilter === 'stale'} onclick={() => toggleStatus('stale')}>
       <span class="kpi-num">{counts.stale}</span>
       <span class="kpi-lbl">Stale &gt;{data?.threshold_min ?? 120}m</span>
-    </div>
-    <div class="kpi-chip active">
+    </button>
+    <button class="kpi-chip active" class:selected={statusFilter === 'active'} onclick={() => toggleStatus('active')}>
       <span class="kpi-num">{counts.active}</span>
       <span class="kpi-lbl">Active</span>
-    </div>
-    <div class="kpi-chip total">
+    </button>
+    <button class="kpi-chip total" class:selected={statusFilter === null} onclick={() => statusFilter = null}>
       <span class="kpi-num">{counts.no_data + counts.stale + counts.active}</span>
-      <span class="kpi-lbl">Total</span>
-    </div>
+      <span class="kpi-lbl">All</span>
+    </button>
   </div>
 
   <!-- ── Filter bar ──────────────────────────────────────────────────── -->
@@ -198,8 +206,15 @@
     border-radius: var(--radius-sm);
     padding: 12px 20px;
     border-left: 4px solid transparent;
+    border-top: none; border-right: none; border-bottom: none;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    cursor: pointer;
+    font-family: var(--font);
+    transition: box-shadow 0.15s, opacity 0.15s;
   }
+  .kpi-chip:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .kpi-chip.selected { box-shadow: 0 0 0 2px currentColor, 0 2px 8px rgba(0,0,0,0.1); }
+  .kpi-chip:not(.selected) { opacity: 0.65; }
   .kpi-chip.no-data { border-color: #CC0000; }
   .kpi-chip.stale   { border-color: #F68D2E; }
   .kpi-chip.active  { border-color: #6CC24A; }
