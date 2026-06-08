@@ -79,6 +79,15 @@
 
     <div class="divider"></div>
 
+    <a
+      href="/testSvelte/monitor?date={dashboard.date}&shift={dashboard.shift}"
+      class="monitor-btn"
+      target="_blank"
+      rel="noopener"
+    >Machine Monitor</a>
+
+    <div class="divider"></div>
+
     <div class="refresh-info">
       <span class="dot" class:loading></span>
       <span>{lastUpdated}</span>
@@ -149,6 +158,18 @@
     height: 28px;
     background: rgba(255, 255, 255, 0.2);
   }
+  .monitor-btn {
+    color: #fff;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+  .monitor-btn:hover { background: rgba(255,255,255,0.12); }
   .shift-toggle {
     display: flex;
     border-radius: var(--radius-sm);

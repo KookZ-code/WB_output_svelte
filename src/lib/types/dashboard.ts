@@ -79,6 +79,21 @@ export interface RecordsResponse {
   prev_tail: RawRecord[]; // last 5 records from the previous shift (for boundary analysis)
 }
 
+export interface MonitorRow {
+  machine_id: string;
+  package: string;
+  last_scan_ts: string | null;
+  since_min: number | null;
+  status: 'no_data' | 'stale' | 'active';
+}
+
+export interface MonitorResponse {
+  rows: MonitorRow[];
+  shift_label: string;
+  as_of: string;       // "HH:MM" — time this snapshot was computed
+  threshold_min: number;
+}
+
 // Internal plan row (server-side only)
 export interface PlanRow {
   package_raw: string;
