@@ -61,6 +61,7 @@
       <button class="ph-num ph-sort" onclick={() => toggleSort('plan_per_shift')}>Plan/Shift{sortIndicator('plan_per_shift')}</button>
       <button class="ph-num ph-sort" onclick={() => toggleSort('target')}>Target{sortIndicator('target')}</button>
       <button class="ph-num ph-sort" onclick={() => toggleSort('bonded')}>Output{sortIndicator('bonded')}</button>
+      <div class="ph-num">Missing</div>
       <button class="ph-pct ph-sort" onclick={() => toggleSort('pct')}>vs Pace{sortIndicator('pct')}</button>
     </div>
     <div class="list">
@@ -83,6 +84,14 @@
           <div class="num">{r.plan_per_shift > 0 ? fmtInt(r.plan_per_shift) : '—'}</div>
           <div class="num muted">{r.target > 0 ? fmtInt(r.target) : '—'}</div>
           <div class="num strong">{fmtInt(r.bonded)}</div>
+          {#if r.target > 0}
+            {@const gap = r.target - r.bonded}
+            <div class="num missing" style:color={gap > 0 ? 'var(--color-brand-red)' : 'var(--color-accent-green)'}>
+              {gap > 0 ? fmtInt(gap) : '—'}
+            </div>
+          {:else}
+            <div class="num muted">—</div>
+          {/if}
           <div class="pct" style:color={paceColor(r)}>
             {r.target > 0 ? fmtSignedPct(r.pct, 0) : '—'}
           </div>
@@ -131,7 +140,7 @@
   .ph-row,
   .row {
     display: grid;
-    grid-template-columns: 80px 1fr 70px 70px 70px 52px;
+    grid-template-columns: 80px 1fr 70px 70px 70px 72px 52px;
     align-items: center;
     gap: 10px;
     font-size: 12px;
@@ -219,6 +228,10 @@
   .num.strong {
     color: var(--color-text-body);
     font-weight: 700;
+  }
+  .num.missing {
+    font-weight: 700;
+    font-feature-settings: 'tnum';
   }
   .num.muted {
     color: var(--color-text-disabled);
