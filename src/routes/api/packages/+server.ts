@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getPlan } from '$lib/server/plan-cache';
 import { mwGet, MiddlewareError } from '$lib/server/middleware';
+import { fetchWip, lookupWip, lookupDoi, lookupPlan, lookupOrder, type WipData } from '$lib/server/wip';
 import { displayToDb, parsePkgFilter, resolveShift } from '$lib/server/handler-utils';
 import type { PackageRow } from '$lib/types/dashboard';
 
@@ -25,13 +26,13 @@ export const GET: RequestHandler = async ({ url }) => {
   const hourFraction = (slotIdx + 1) / w.hours.length;
 
   let rows: MwPackage[];
+  let wip: WipData;
   try {
-    rows = await mwGet<MwPackage[]>('/api/v1/wb-uph/packages', {
-      date,
-      shift,
-      hour: String(hour),
-      packages,
-    });
+    // Raw bonded per package (API center) + WireBond WIP per package (A01) in parallel.
+    [rows, wip] = await Promise.all([
+      mwGet<MwPackage[]>('/api/v1/wb-uph/packages', { date, shift, hour: String(hour), packages }),
+      fetchWip().catch((): WipData => ({ byMpc: new Map(), byNorm: new Map(), orderByMpc: new Map(), orderByNorm: new Map() })),
+    ]);
   } catch (e) {
     error(e instanceof MiddlewareError ? 502 : 500, e instanceof Error ? e.message : String(e));
   }
@@ -64,6 +65,22 @@ export const GET: RequestHandler = async ({ url }) => {
     }
   }
 
-  const result = [...mpcRows, ...baseMerge.values()].sort((a, b) => b.bonded - a.bonded);
+  const result = [...mpcRows, ...baseMerge.values()];
+  // Overlay WireBond WIP/DOI + A01 list position, matched by MPC code then name.
+  // Plan/Shift now comes from A01 (per-day ÷ 2) and drives Target/Missing/vs Pace;
+  // packages A01 doesn't have keep their Excel plan.
+  for (const row of result) {
+    row.wip = lookupWip(row.package, wip);
+    row.doi = lookupDoi(row.package, wip);
+    row.a01Seq = lookupOrder(row.package, wip);
+    const dailyPlan = lookupPlan(row.package, wip);
+    if (dailyPlan != null && dailyPlan > 0) {
+      row.plan_per_shift = Math.round(dailyPlan / 2); // 2 shifts/day
+      row.target = Math.trunc(row.plan_per_shift * hourFraction);
+      row.pct = row.target > 0 ? ((row.bonded - row.target) / row.target) * 100 : 0;
+    }
+  }
+  // Default order = A01 sequence (packages not in A01 sort last).
+  result.sort((a, b) => (a.a01Seq ?? Infinity) - (b.a01Seq ?? Infinity));
   return json(result);
 };

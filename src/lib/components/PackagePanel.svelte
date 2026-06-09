@@ -5,7 +5,7 @@
   import { dashboard } from '$lib/stores/dashboard.svelte';
   import { fmtInt, fmtSignedPct } from '$lib/utils/format';
 
-  type SortCol = 'package' | 'plan_per_shift' | 'target' | 'bonded' | 'pct';
+  type SortCol = 'a01' | 'package' | 'wip' | 'doi' | 'plan_per_shift' | 'target' | 'bonded' | 'pct';
 
   type Props = {
     rows: PackageRow[] | null;
@@ -14,8 +14,9 @@
   };
   const { rows, hour, onSelect }: Props = $props();
 
-  let sortCol = $state<SortCol>('bonded');
-  let sortAsc = $state(false);
+  // Default order follows the A01 package list (a01Seq).
+  let sortCol = $state<SortCol>('a01');
+  let sortAsc = $state(true);
 
   function toggleSort(col: SortCol) {
     if (sortCol === col) sortAsc = !sortAsc;
@@ -31,7 +32,10 @@
     if (!rows) return [];
     return [...rows].sort((a, b) => {
       let diff: number;
-      if (sortCol === 'package') diff = a.package.localeCompare(b.package);
+      if (sortCol === 'a01') diff = (a.a01Seq ?? Infinity) - (b.a01Seq ?? Infinity);
+      else if (sortCol === 'package') diff = a.package.localeCompare(b.package);
+      else if (sortCol === 'wip') diff = (a.wip ?? -1) - (b.wip ?? -1);
+      else if (sortCol === 'doi') diff = (a.doi ?? -1) - (b.doi ?? -1);
       else diff = (a[sortCol] as number) - (b[sortCol] as number);
       return sortAsc ? diff : -diff;
     });
@@ -58,6 +62,8 @@
     <div class="ph-row">
       <button class="ph-pkg ph-sort" onclick={() => toggleSort('package')}>Package{sortIndicator('package')}</button>
       <div class="ph-bar"></div>
+      <button class="ph-num ph-sort" onclick={() => toggleSort('wip')}>WIP{sortIndicator('wip')}</button>
+      <button class="ph-num ph-sort" onclick={() => toggleSort('doi')}>DOI{sortIndicator('doi')}</button>
       <button class="ph-num ph-sort" onclick={() => toggleSort('plan_per_shift')}>Plan/Shift{sortIndicator('plan_per_shift')}</button>
       <button class="ph-num ph-sort" onclick={() => toggleSort('target')}>Target{sortIndicator('target')}</button>
       <button class="ph-num ph-sort" onclick={() => toggleSort('bonded')}>Output{sortIndicator('bonded')}</button>
@@ -81,6 +87,8 @@
             ></div>
             <div class="bar-target-line"></div>
           </div>
+          <div class="num wip">{r.wip != null ? fmtInt(r.wip) : '—'}</div>
+          <div class="num doi" class:doi-low={r.doi != null && r.doi < 1}>{r.doi != null ? r.doi.toFixed(1) : '—'}</div>
           <div class="num">{r.plan_per_shift > 0 ? fmtInt(r.plan_per_shift) : '—'}</div>
           <div class="num muted">{r.target > 0 ? fmtInt(r.target) : '—'}</div>
           <div class="num strong">{fmtInt(r.bonded)}</div>
@@ -140,7 +148,7 @@
   .ph-row,
   .row {
     display: grid;
-    grid-template-columns: 80px 1fr 70px 70px 70px 72px 52px;
+    grid-template-columns: 80px 1fr 64px 48px 70px 70px 70px 72px 52px;
     align-items: center;
     gap: 10px;
     font-size: 12px;
@@ -235,6 +243,11 @@
   }
   .num.muted {
     color: var(--color-text-disabled);
+  }
+  /* DOI below 1 day = low inventory → warn in red */
+  .num.doi-low {
+    color: var(--color-brand-red);
+    font-weight: 700;
   }
   .pct {
     text-align: right;

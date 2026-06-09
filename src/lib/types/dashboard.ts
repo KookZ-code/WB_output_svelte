@@ -30,6 +30,9 @@ export interface PackageRow {
   bonded: number;
   target: number;
   pct: number;
+  wip?: number;    // WireBond-stage WIP from the A01 pkgDOI API (matched by package)
+  doi?: number;    // WireBond-stage Days Of Inventory from A01 pkgDOI
+  a01Seq?: number; // position in the A01 package list (default display order)
 }
 
 export interface WbEvent {
