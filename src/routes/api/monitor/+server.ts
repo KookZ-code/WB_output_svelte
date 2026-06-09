@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { mwGet, MiddlewareError } from '$lib/server/middleware';
+import { fetchWbReport, normId } from '$lib/server/wbReport';
 import { resolveShift } from '$lib/server/handler-utils';
 import type { MonitorResponse, MonitorRow } from '$lib/types/dashboard';
 
@@ -8,17 +9,26 @@ export const GET: RequestHandler = async ({ url }) => {
   const { date, shift, window: w } = resolveShift(url);
 
   try {
-    // `as_of` / `threshold_min` are computed server-side (API center clock); the
-    // staleness rows are already sorted. shift_label is the only local addition.
-    const data = await mwGet<{ rows: MonitorRow[]; as_of: string; threshold_min: number }>(
-      '/api/v1/wb-uph/monitor',
-      { date, shift }
-    );
+    // Staleness rows from central.db + per-machine events from the WB Report
+    // overlay (API center, MSSQL). Report failure degrades to empty events.
+    const [mon, wbMap] = await Promise.all([
+      mwGet<{ rows: Omit<MonitorRow, 'events'>[]; as_of: string; threshold_min: number }>(
+        '/api/v1/wb-uph/monitor',
+        { date, shift }
+      ),
+      fetchWbReport(date, shift).catch(() => new Map()),
+    ]);
+
+    const rows: MonitorRow[] = mon.rows.map((r) => ({
+      ...r,
+      events: wbMap.get(normId(r.machine_id))?.events ?? [],
+    }));
+
     const body: MonitorResponse = {
-      rows: data.rows,
+      rows,
       shift_label: w.label,
-      as_of: data.as_of,
-      threshold_min: data.threshold_min,
+      as_of: mon.as_of,
+      threshold_min: mon.threshold_min,
     };
     return json(body);
   } catch (e) {

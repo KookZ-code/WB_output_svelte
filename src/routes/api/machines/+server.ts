@@ -3,14 +3,7 @@ import type { RequestHandler } from './$types';
 import { getPlan } from '$lib/server/plan-cache';
 import { mwGet, MiddlewareError } from '$lib/server/middleware';
 import { displayToDb, resolveShift } from '$lib/server/handler-utils';
-import type { WbEvent } from '$lib/types/dashboard';
-
-// ── Machine ID normalisation ──────────────────────────────────────────────
-// WB Report uses "W/B # 334R", Output Monitoring uses "WB334R".
-// Strip everything except letters and digits, uppercase → same key.
-function normId(id: string): string {
-  return id.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-}
+import { fetchWbReport, normId, type WbReportMachine } from '$lib/server/wbReport';
 
 // Raw per-machine rows from the API center (plan target/% applied below).
 interface MwMachine {
@@ -20,34 +13,6 @@ interface MwMachine {
   bonded_unit: number;
   last_scan_ts: string | null;
   pkg_mpc: string;
-}
-
-// ── Fetch utilisation + events from EMH WB Report middleware ─────────────
-interface WbReportMachine {
-  machine_id: string;
-  util_pct: number;
-  events: WbEvent[];
-}
-
-async function fetchWbReport(date: string, shift: 'D' | 'N'): Promise<Map<string, WbReportMachine>> {
-  const shiftFull = shift === 'D' ? 'Day' : 'Night';
-
-  // Utilisation + events come from the API center's /api/v1/wb/report (MSSQL),
-  // consolidating the former standalone WB Report service (:8001). mwGet handles
-  // the { data, error } envelope + X-API-Key. The event shape (job_type, t_start,
-  // t_end, des_job, dur_min, is_open) matches WbEvent; machine_id "W/B # 398"
-  // resolves to the same key as central.db's "WB398" via normId().
-  const data = await mwGet<{ machines?: WbReportMachine[] }>('/api/v1/wb/report', {
-    date,
-    shift: shiftFull,
-    packages: '__ALL__',
-  });
-
-  const map = new Map<string, WbReportMachine>();
-  for (const m of data.machines ?? []) {
-    map.set(normId(m.machine_id), m);
-  }
-  return map;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

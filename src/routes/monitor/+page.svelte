@@ -1,7 +1,8 @@
 <script lang="ts">
   import { base } from '$app/paths';
   import { onMount } from 'svelte';
-  import type { MonitorRow, MonitorResponse } from '$lib/types/dashboard';
+  import type { MonitorRow, MonitorResponse, WbEvent } from '$lib/types/dashboard';
+  import { currentStatus, pillStyle, pillAbbr } from '$lib/utils/machineStatus';
 
   const REFRESH_MS = 2 * 60 * 1000; // 2 min auto-refresh
 
@@ -59,6 +60,59 @@
 
   function statusLabel(s: MonitorRow['status']): string {
     return s === 'no_data' ? 'NO DATA' : s === 'stale' ? 'STALE' : 'ACTIVE';
+  }
+
+  // ── CSV export ─────────────────────────────────────────────────────────
+  function csvCell(v: string): string {
+    return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  }
+
+  function eventsToText(events: WbEvent[]): string {
+    return events
+      .map((e) => {
+        const range = `${e.t_start}-${e.t_end || 'now'}`;
+        const desc = e.des_job ? ` · ${e.des_job}` : '';
+        return `${pillAbbr(e)} ${range} (${e.dur_min}m)${desc}`;
+      })
+      .join(' | ');
+  }
+
+  /** Export the currently-filtered rows to a CSV file (UTF-8 BOM for Excel). */
+  function exportCsv() {
+    if (!data || filtered.length === 0) return;
+    const headers = ['Machine', 'Package', 'Last Update', 'Since (min)', 'Status', 'Activity', 'Events'];
+    const lines = [headers.join(',')];
+    for (const r of filtered) {
+      const cells = [
+        r.machine_id,
+        r.package || '',
+        r.last_scan_ts ?? '',
+        r.since_min ?? '',
+        statusLabel(r.status),
+        currentStatus(r.events).label,
+        eventsToText(r.events),
+      ].map((c) => csvCell(String(c)));
+      lines.push(cells.join(','));
+    }
+    const csv = '﻿' + lines.join('\r\n');
+    try {
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `machine-monitor_${dateParam}_${shiftParam}.csv`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      // Defer cleanup — revoking immediately can abort the download in some browsers.
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 1000);
+    } catch (err) {
+      console.error('CSV export failed', err);
+      alert('Export failed: ' + (err instanceof Error ? err.message : String(err)));
+    }
   }
 
   onMount(() => {
@@ -121,6 +175,12 @@
       bind:value={pkgFilter}
     />
     <span class="filter-count">{filtered.length} machines</span>
+    <button
+      class="export-btn"
+      onclick={exportCsv}
+      disabled={!data || filtered.length === 0}
+      title="Export the {filtered.length} filtered rows to CSV"
+    >⬇ Export CSV</button>
   </div>
 
   <!-- ── Table ───────────────────────────────────────────────────────── -->
@@ -133,15 +193,18 @@
           <th class="r">Last Update</th>
           <th class="r">Since</th>
           <th>Status</th>
+          <th>Activity</th>
+          <th>Events (shift)</th>
         </tr>
       </thead>
       <tbody>
         {#if !data}
-          <tr><td colspan="5" class="empty">Loading…</td></tr>
+          <tr><td colspan="7" class="empty">Loading…</td></tr>
         {:else if filtered.length === 0}
-          <tr><td colspan="5" class="empty">No machines found</td></tr>
+          <tr><td colspan="7" class="empty">No machines found</td></tr>
         {:else}
           {#each filtered as r (r.machine_id)}
+            {@const st = currentStatus(r.events)}
             <tr class="row-{r.status}">
               <td><strong>{r.machine_id}</strong></td>
               <td class="pkg">{r.package || '—'}</td>
@@ -149,6 +212,28 @@
               <td class="r since-{r.status}">{fmtSince(r.since_min)}</td>
               <td>
                 <span class="badge badge-{r.status}">{statusLabel(r.status)}</span>
+              </td>
+              <td>
+                <span class="state-pill" style:background={st.bg} style:color={st.tx}>{st.label}</span>
+              </td>
+              <td class="td-events">
+                <div class="ev-wrap">
+                  {#each r.events as ev (ev.t_start + ev.job_type)}
+                    {@const c = pillStyle(ev)}
+                    {@const ab = pillAbbr(ev)}
+                    {@const desc = ev.des_job ? ' · ' + (ev.des_job.length > 18 ? ev.des_job.slice(0, 18) + '…' : ev.des_job) : ''}
+                    <span class="ev-pill"
+                      style:background={c.bg}
+                      style:color={c.tx}
+                      title="{ev.job_type}{ev.des_job ? ' · ' + ev.des_job : ''} · {ev.t_start}–{ev.t_end || 'now'} ({ev.dur_min}m)">
+                      <span class="pill-abbr">{ab}</span>
+                      <span class="pill-time">{ev.t_start}–{ev.t_end || 'now'}</span>{desc}
+                      <span class="pill-dur">({ev.dur_min}m)</span>
+                    </span>
+                  {:else}
+                    <span class="ev-none">—</span>
+                  {/each}
+                </div>
               </td>
             </tr>
           {/each}
@@ -244,6 +329,21 @@
   }
   .pkg-search:focus { outline: none; border-color: var(--color-accent-blue); }
   .filter-count { font-size: 12px; color: var(--color-text-muted); }
+  .export-btn {
+    margin-left: auto;
+    padding: 7px 14px;
+    border: 1px solid var(--color-border-input);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-primary);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .export-btn:hover:not(:disabled) { background: var(--color-surface-alt); border-color: var(--color-accent-blue); }
+  .export-btn:disabled { opacity: 0.5; cursor: default; }
 
   /* ── Table ───────────────────────────────────────────────────────── */
   .table-wrap {
@@ -295,4 +395,28 @@
   .badge-no_data { background: #fdecea; color: #CC0000; }
   .badge-stale   { background: #fef4e8; color: #F68D2E; }
   .badge-active  { background: #e8f5ee; color: #5EBF33; }
+
+  /* Operational state pill (from WB Report events) */
+  .state-pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  /* Event pills (downtime/setup during the shift) — matches the by-machine table */
+  .td-events { max-width: 460px; }
+  .ev-wrap { display: flex; flex-wrap: wrap; gap: 3px; }
+  .ev-pill {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 600; white-space: nowrap;
+    cursor: default; line-height: 1.4;
+  }
+  .pill-abbr { font-weight: 700; }
+  .pill-time { opacity: .85; font-size: 9px; font-weight: 500; }
+  .pill-dur  { opacity: .7;  font-size: 9px; font-weight: 500; }
+  .ev-none { color: var(--color-text-disabled); }
 </style>

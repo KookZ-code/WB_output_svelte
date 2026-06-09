@@ -1,8 +1,9 @@
 <script lang="ts">
   // Drill 2 — machine table for selected (hour, package).
-  import type { MachineRow, WbEvent } from '$lib/types/dashboard';
+  import type { MachineRow } from '$lib/types/dashboard';
   import { dashboard } from '$lib/stores/dashboard.svelte';
   import { fmtInt, fmtSignedPct } from '$lib/utils/format';
+  import { STATUS_MAP, currentStatus, pillStyle, pillAbbr, type StatusId } from '$lib/utils/machineStatus';
 
   type Props = {
     rows: MachineRow[] | null;
@@ -63,12 +64,12 @@
   // Status KPI counts
   const statusCounts = $derived.by(() => {
     if (!rows || !hasUtil) return null;
-    const counts: Record<StatusId, number> = { run:0, down:0, setup:0, convert:0, sbo:0, pm:0 };
+    const counts: Record<StatusId, number> = { run:0, down:0, idle:0, setup:0, convert:0, sbo:0, pm:0 };
     for (const r of rows) counts[currentStatus(r.events).id]++;
     return counts;
   });
 
-  const STATUS_KPI_ORDER: StatusId[] = ['run','down','setup','convert','sbo','pm'];
+  const STATUS_KPI_ORDER: StatusId[] = ['run','down','idle','setup','convert','sbo','pm'];
 
   function uphColor(r: MachineRow): string {
     if (r.target_uph <= 0) return 'var(--color-text-body)';
@@ -89,92 +90,8 @@
     return '#CC0000';
   }
 
-  // ── Machine status from events ─────────────────────────────────────────
-  type StatusId = 'run' | 'down' | 'setup' | 'convert' | 'sbo' | 'pm';
-  interface MachineStatus { id: StatusId; label: string; bg: string; tx: string; }
-
-  const STATUS_MAP: Record<string, MachineStatus> = {
-    run:     { id:'run',     label:'RUN',     bg:'#5EBF33', tx:'#fff' },
-    down:    { id:'down',    label:'DOWN',    bg:'#CC0000', tx:'#fff' },
-    setup:   { id:'setup',   label:'SETUP',   bg:'#1D9CE4', tx:'#fff' },
-    convert: { id:'convert', label:'CONV',    bg:'#009688', tx:'#fff' },
-    sbo:     { id:'sbo',     label:'SBO',     bg:'#17A2B8', tx:'#fff' },
-    pm:      { id:'pm',      label:'PM',      bg:'#702076', tx:'#fff' },
-  };
-
-  // Compare "HH:MM" strings — returns true if a < b
-  function timeLt(a: string, b: string): boolean {
-    return a.localeCompare(b) < 0;
-  }
-
-  function currentStatus(events: WbEvent[]): MachineStatus {
-    if (!events.length) return STATUS_MAP.run;
-
-    // Priority 1: explicitly open/active job (is_open flag from job_list)
-    const openJob = events.find(e => e.is_open);
-    if (openJob) {
-      const jt = (openJob.job_type || '').toUpperCase();
-      if (jt === 'M/C DOWN' || jt === 'ENGINEERING DOWN' || jt === 'FACILITY DOWN') return STATUS_MAP.down;
-      if (jt === 'SETUP BY OPERATOR') return STATUS_MAP.sbo;
-      if (jt === 'SETUP' || jt === 'CLEAN MOLD' || jt === 'CHANGE CAP') return STATUS_MAP.setup;
-      if (jt === 'CONVERT') return STATUS_MAP.convert;
-      if (jt === 'PM') return STATUS_MAP.pm;
-      return STATUS_MAP.run;
-    }
-
-    // Priority 2: time-based check on closed events
-    const now = new Date();
-    const nowStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-
-    let active: WbEvent | null = null;
-    for (const ev of events) {
-      if (!ev.t_start || !ev.t_end) continue;
-      if (!timeLt(nowStr, ev.t_start) && timeLt(nowStr, ev.t_end)) {
-        active = ev;
-      }
-    }
-    if (!active) {
-      // Take most recent event; if it ended before now → running
-      const sorted = [...events].filter(e => e.t_end).sort((a,b) => (b.t_start||'').localeCompare(a.t_start||''));
-      const last = sorted[0] ?? null;
-      if (!last || (last.t_end && !timeLt(nowStr, last.t_end))) return STATUS_MAP.run;
-      active = last;
-    }
-    if (!active) return STATUS_MAP.run;
-
-    const jt = (active.job_type || '').toUpperCase();
-    if (jt === 'M/C DOWN' || jt === 'ENGINEERING DOWN' || jt === 'FACILITY DOWN') return STATUS_MAP.down;
-    if (jt === 'SETUP BY OPERATOR') return STATUS_MAP.sbo;
-    if (jt === 'SETUP' || jt === 'CLEAN MOLD' || jt === 'CHANGE CAP') return STATUS_MAP.setup;
-    if (jt === 'CONVERT') return STATUS_MAP.convert;
-    if (jt === 'PM') return STATUS_MAP.pm;
-    return STATUS_MAP.run;
-  }
-
-  // ── Job type pill config ───────────────────────────────────────────────
-  const JOB_ABBR: Record<string, string> = {
-    'M/C DOWN': 'DOWN', 'ENGINEERING DOWN': 'ENG↓', 'FACILITY DOWN': 'FAC↓',
-    'PM': 'PM', 'SETUP': 'SETUP', 'SETUP BY OPERATOR': 'SBO',
-    'CONVERT': 'CONV', 'CLEAN MOLD': 'CLEAN', 'CHANGE CAP': 'CHG',
-  };
-  const JOB_COLOR: Record<string, { bg: string; tx: string }> = {
-    'M/C DOWN':          { bg: '#CC0000', tx: '#fff' },
-    'ENGINEERING DOWN':  { bg: '#990000', tx: '#fff' },
-    'FACILITY DOWN':     { bg: '#FD7F20', tx: '#fff' },
-    'PM':                { bg: '#702076', tx: '#fff' },
-    'SETUP':             { bg: '#1D9CE4', tx: '#fff' },
-    'SETUP BY OPERATOR': { bg: '#17A2B8', tx: '#fff' },
-    'CONVERT':           { bg: '#009688', tx: '#fff' },
-    'CLEAN MOLD':        { bg: '#5EBF33', tx: '#fff' },
-    'CHANGE CAP':        { bg: '#8A8A8A', tx: '#fff' },
-  };
-
-  function pillStyle(ev: WbEvent): { bg: string; tx: string } {
-    return JOB_COLOR[(ev.job_type || '').toUpperCase()] ?? { bg: '#8A8A8A', tx: '#fff' };
-  }
-  function pillAbbr(ev: WbEvent): string {
-    return JOB_ABBR[(ev.job_type || '').toUpperCase()] ?? (ev.job_type || '').slice(0, 5);
-  }
+  // Machine status + job-type pills now live in $lib/utils/machineStatus (shared
+  // with the machine-monitor page).
 </script>
 
 {#if rows == null || pkg == null}

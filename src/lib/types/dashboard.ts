@@ -85,6 +85,7 @@ export interface MonitorRow {
   last_scan_ts: string | null;
   since_min: number | null;
   status: 'no_data' | 'stale' | 'active';
+  events: WbEvent[]; // downtime/setup events during the shift (from WB Report overlay)
 }
 
 export interface MonitorResponse {
