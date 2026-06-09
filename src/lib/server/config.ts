@@ -1,8 +1,6 @@
 // Server-only env reader. Validates that required env vars are set.
-// Path existence is NOT checked here — DB_PATH may be a network share that is
-// transiently locked at shift boundaries; db-sync.ts handles that with stale-
-// cache fallback. Checking existsSync at module-load time would throw before
-// db-sync gets a chance to serve the cached copy.
+// Hourly-UPH data now comes from the API center (see middleware.ts); the only
+// local data source left is the Excel plan file.
 
 function required(name: string): string {
   const v = process.env[name];
@@ -10,5 +8,4 @@ function required(name: string): string {
   return v;
 }
 
-export const DB_PATH = required('DB_PATH');
 export const XLSX_PATH = required('XLSX_PATH');

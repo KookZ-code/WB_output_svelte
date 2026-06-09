@@ -1,29 +1,36 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getPlan } from '$lib/server/plan-cache';
-import { querySummary } from '$lib/server/queries/summary';
+import { mwGet, MiddlewareError } from '$lib/server/middleware';
 import { displayToDb, parsePkgFilter, resolveShift } from '$lib/server/handler-utils';
-import { shiftWindow } from '$lib/server/shift';
 import type { SummaryResponse } from '$lib/types/dashboard';
+
+// Raw summary numbers from the API center (plan overlay is applied below).
+interface MwSummary {
+  total_bonded: number;
+  active_machines: number;
+  active_operators: number;
+}
 
 export const GET: RequestHandler = async ({ url }) => {
   const { date, shift, window: w } = resolveShift(url);
   const plan = getPlan();
   const pkgFilter = parsePkgFilter(url).map((p) => displayToDb(p, plan.displayNames));
+  const packages = pkgFilter.length ? pkgFilter.join(',') : undefined;
 
-  let data: ReturnType<typeof querySummary>;
+  let data: MwSummary;
   try {
-    data = querySummary(w, pkgFilter);
+    data = await mwGet<MwSummary>('/api/v1/wb-uph/summary', { date, shift, packages });
   } catch (e) {
-    error(503, `DB error: ${e instanceof Error ? e.message : String(e)}`);
+    error(e instanceof MiddlewareError ? 502 : 500, e instanceof Error ? e.message : String(e));
   }
 
-  // Daily total = this shift + the other shift of the same date
+  // Daily total = this shift + the other shift of the same date.
   const otherShift = shift === 'D' ? 'N' : 'D';
-  const otherWindow = shiftWindow(date, otherShift);
   let otherBonded = 0;
   try {
-    otherBonded = querySummary(otherWindow, pkgFilter).total_bonded;
+    otherBonded = (await mwGet<MwSummary>('/api/v1/wb-uph/summary', { date, shift: otherShift, packages }))
+      .total_bonded;
   } catch {
     // non-fatal — daily total degrades to this shift only
   }
@@ -35,8 +42,6 @@ export const GET: RequestHandler = async ({ url }) => {
     targetShift = plan.rows.reduce((s, r) => s + r.plan_per_shift, 0);
   } else {
     // mpcPlanMap by full MPC key, falling back to planMap by base name.
-    // Plain Excel rows like "8LSOIC" only land in planMap (keyed "8SOIC"),
-    // so a filter of "8SOIC(C2X)" must strip "(C2X)" before the planMap lookup.
     const plans = pkgFilter
       .map((k) => {
         const base = k.split('(')[0] ?? k;

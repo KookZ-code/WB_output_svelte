@@ -1,11 +1,12 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getPlan } from '$lib/server/plan-cache';
-import { queryRecords, queryPrevTailRecords } from '$lib/server/queries/records';
+import { mwGet, MiddlewareError } from '$lib/server/middleware';
 import { displayToDb, resolveShift } from '$lib/server/handler-utils';
+import type { RecordsResponse } from '$lib/types/dashboard';
 
 export const GET: RequestHandler = async ({ url }) => {
-  const { window: w } = resolveShift(url);
+  const { date, shift } = resolveShift(url);
   const plan = getPlan();
 
   const machineId = url.searchParams.get('machine_id');
@@ -16,12 +17,16 @@ export const GET: RequestHandler = async ({ url }) => {
   const dbPkg = displayToDb(pkg, plan.displayNames);
 
   try {
-    const [current, prev_tail] = [
-      queryRecords(w, machineId, dbPkg),
-      queryPrevTailRecords(w, machineId, dbPkg, 5),
-    ];
-    return json({ current, prev_tail });
+    // Fully plan-independent — the API returns { current, prev_tail } directly.
+    const data = await mwGet<RecordsResponse>('/api/v1/wb-uph/records', {
+      date,
+      shift,
+      machine_id: machineId,
+      package: dbPkg,
+    });
+    return json(data);
   } catch (e) {
-    error(503, `DB error: ${e instanceof Error ? e.message : String(e)}`);
+    if (e instanceof MiddlewareError) error(502, e.message);
+    error(503, `API error: ${e instanceof Error ? e.message : String(e)}`);
   }
 };

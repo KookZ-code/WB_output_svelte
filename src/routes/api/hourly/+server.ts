@@ -1,28 +1,31 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getPlan } from '$lib/server/plan-cache';
-import { queryHourly } from '$lib/server/queries/hourly';
+import { mwGet, MiddlewareError } from '$lib/server/middleware';
 import { displayToDb, parsePkgFilter, resolveShift } from '$lib/server/handler-utils';
 import { hourLabel } from '$lib/server/shift';
 import type { HourlyResponse } from '$lib/types/dashboard';
 
 export const GET: RequestHandler = async ({ url }) => {
-  const { window: w } = resolveShift(url);
+  const { date, shift, window: w } = resolveShift(url);
   const plan = getPlan();
   const pkgFilter = parsePkgFilter(url).map((p) => displayToDb(p, plan.displayNames));
+  const packages = pkgFilter.length ? pkgFilter.join(',') : undefined;
 
-  let pkgMap: Map<string, number[]>;
+  let mw: { packages: Record<string, number[]> };
   try {
-    pkgMap = queryHourly(w, pkgFilter);
+    mw = await mwGet<{ packages: Record<string, number[]> }>('/api/v1/wb-uph/hourly', {
+      date,
+      shift,
+      packages,
+    });
   } catch (e) {
-    error(503, `DB error: ${e instanceof Error ? e.message : String(e)}`);
+    error(e instanceof MiddlewareError ? 502 : 500, e instanceof Error ? e.message : String(e));
   }
 
   const n = w.hours.length;
   // Lookup priority: mpcPlanMap by full MPC key → planMap by base name (strip
-  // "(CODE)" suffix). Without the base-name fallback, packages whose Excel
-  // plan rows have no MPC code (e.g. plain "8LSOIC") never match a DB pkg_key
-  // like "8SOIC(C2X)" and contribute 0 to the target.
+  // "(CODE)" suffix), so plain Excel rows still contribute to the target.
   const lookup = (k: string) => {
     const base = k.split('(')[0] ?? k;
     return plan.mpcPlanMap.get(k) ?? plan.planMap.get(base);
@@ -36,8 +39,7 @@ export const GET: RequestHandler = async ({ url }) => {
     Math.trunc((totalTarget * (i + 1)) / n)
   );
   const hours = w.hours.map(hourLabel);
-  const packages: Record<string, number[]> = Object.fromEntries(pkgMap);
 
-  const body: HourlyResponse = { hours, target_cumulative: targetCumulative, packages };
+  const body: HourlyResponse = { hours, target_cumulative: targetCumulative, packages: mw.packages };
   return json(body);
 };
