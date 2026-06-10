@@ -199,7 +199,7 @@
                 <!-- Events in Shift -->
                 <td class="td-events">
                   <div class="ev-wrap">
-                    {#each r.events as ev (ev.t_start + ev.job_type)}
+                    {#each r.events as ev, i (i)}
                       {@const c  = pillStyle(ev)}
                       {@const ab = pillAbbr(ev)}
                       {@const desc = ev.des_job ? ' · ' + (ev.des_job.length > 18 ? ev.des_job.slice(0,18)+'…' : ev.des_job) : ''}
