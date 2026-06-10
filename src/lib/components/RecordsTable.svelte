@@ -4,6 +4,7 @@
   // by current shift records, with EMH events interleaved by timestamp.
   import type { RawRecord, WbEvent } from '$lib/types/dashboard';
   import { fmtInt } from '$lib/utils/format';
+  import { isIdle, STATUS_MAP } from '$lib/utils/machineStatus';
 
   type Props = {
     rows: RawRecord[] | null;
@@ -147,14 +148,15 @@
                 </td>
               </tr>
             {:else if item.kind === 'event'}
-              {@const c = evColor(item.data.job_type)}
+              {@const idle = isIdle(item.data)}
+              {@const c = idle ? { bg: STATUS_MAP.idle.bg, tx: STATUS_MAP.idle.tx } : evColor(item.data.job_type)}
               <tr class="event-row">
                 <td colspan="7">
                   <span class="ev-pill"
                     style:background={c.bg}
                     style:color={c.tx}
                     class:ev-open={item.data.is_open}
-                  >{item.data.job_type}</span>
+                  >{idle ? 'IDLE' : item.data.job_type}</span>
                   <span class="ev-label">{evLabel(item.data)}</span>
                 </td>
               </tr>
