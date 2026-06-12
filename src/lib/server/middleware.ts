@@ -51,9 +51,9 @@ export async function mwGet<T>(
     throw new MiddlewareError('HTTP_ERROR', `API center returned ${res.status}`);
   }
 
-  const body = (await res.json()) as { data: T | null; error: { code: string; message: string } | null };
+  const body = JSON.parse(await res.text()) as { data: T | null; error: { code: string; message: string } | null };
 
-  if (body.error !== null) {
+  if (body.error != null) {
     const e = body.error;
     throw new MiddlewareError(e?.code ?? 'API_ERROR', e?.message ?? 'Unknown API error');
   }
