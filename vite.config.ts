@@ -35,12 +35,6 @@ export default defineConfig({
     // which breaks LAN access using a stable computer name. Internal-network
     // dev only — production runs behind IIS so this setting has no effect.
     allowedHosts: true,
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
-      },
-    },
   },
   test: {
     include: ['src/**/*.{test,spec}.{js,ts}'],
