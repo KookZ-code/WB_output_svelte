@@ -41,22 +41,28 @@ export const GET: RequestHandler = async ({ url }) => {
   const wip = await fetchWip().catch(() => null);
 
   // Target shift total — A01 plan (per day ÷ 2) preferred, Excel fallback.
-  const planRows = pkgFilter.length === 0
-    ? [...plan.planMap.values()]
-    : pkgFilter
-        .map((k) => {
-          const base = k.split('(')[0] ?? k;
-          return plan.mpcPlanMap.get(k) ?? plan.planMap.get(base);
-        })
-        .filter((p): p is NonNullable<typeof p> => Boolean(p));
-
-  const targetShift = planRows.reduce((s, r) => {
-    const a01Daily = wip ? lookupPlan(r.package_norm, wip) : undefined;
-    const perShift = a01Daily != null && a01Daily > 0
-      ? Math.round(a01Daily / 2)
-      : r.plan_per_shift;
-    return s + perShift;
-  }, 0);
+  let targetShift: number;
+  if (pkgFilter.length === 0) {
+    // All Package: use A01 total directly (avoids Excel cross-reference mismatches).
+    // Fall back to Excel sum if A01 unavailable.
+    targetShift = wip && wip.totalDailyPlan > 0
+      ? Math.round(wip.totalDailyPlan / 2)
+      : plan.rows.reduce((s, r) => s + r.plan_per_shift, 0);
+  } else {
+    const planRows = pkgFilter
+      .map((k) => {
+        const base = k.split('(')[0] ?? k;
+        return plan.mpcPlanMap.get(k) ?? plan.planMap.get(base);
+      })
+      .filter((p): p is NonNullable<typeof p> => Boolean(p));
+    targetShift = planRows.reduce((s, r) => {
+      const a01Daily = wip ? lookupPlan(r.package_norm, wip) : undefined;
+      const perShift = a01Daily != null && a01Daily > 0
+        ? Math.round(a01Daily / 2)
+        : r.plan_per_shift;
+      return s + perShift;
+    }, 0);
+  }
 
   const achievementPct = targetShift > 0 ? (data.total_bonded / targetShift) * 100 : 0;
 

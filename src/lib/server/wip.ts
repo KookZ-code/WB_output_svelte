@@ -27,6 +27,7 @@ export interface WipData {
   byNorm: Map<string, WipVal>;      // normalised package name → WireBond WIP/DOI
   orderByMpc: Map<string, number>;  // MPC code → A01 list position
   orderByNorm: Map<string, number>; // normalised name → A01 list position
+  totalDailyPlan: number;           // sum of Plan across all A01 rows (per day)
 }
 
 const TTL_MS = 60_000;
@@ -136,7 +137,8 @@ export async function fetchWip(): Promise<WipData> {
       if (!orderByNorm.has(nk)) orderByNorm.set(nk, i);
     }
   });
-  const data: WipData = { byMpc, byNorm, orderByMpc, orderByNorm };
+  const totalDailyPlan = rows.reduce((s, r) => s + (r.Plan ?? 0), 0);
+  const data: WipData = { byMpc, byNorm, orderByMpc, orderByNorm, totalDailyPlan };
   cache = { at: Date.now(), data };
   return data;
 }
