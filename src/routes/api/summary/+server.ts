@@ -41,13 +41,20 @@ export const GET: RequestHandler = async ({ url }) => {
   const wip = await fetchWip().catch(() => null);
 
   // Target shift total — A01 plan (per day ÷ 2) preferred, Excel fallback.
+  // For All Package / All QFN / All Lead presets, use A01 totals directly to
+  // avoid per-package name-matching errors.
+  const isAllQfn  = pkgFilter.length > 0 && pkgFilter.every(k => /QFN/i.test(k));
+  const isAllLead = pkgFilter.length > 0 && pkgFilter.every(k => !/QFN/i.test(k));
+
   let targetShift: number;
-  if (pkgFilter.length === 0) {
-    // All Package: use A01 total directly (avoids Excel cross-reference mismatches).
-    // Fall back to Excel sum if A01 unavailable.
-    targetShift = wip && wip.totalDailyPlan > 0
-      ? Math.round(wip.totalDailyPlan / 2)
-      : plan.rows.reduce((s, r) => s + r.plan_per_shift, 0);
+  if (pkgFilter.length === 0 && wip && wip.totalDailyPlan > 0) {
+    targetShift = Math.round(wip.totalDailyPlan / 2);
+  } else if (isAllQfn && wip && wip.totalDailyPlanQfn > 0) {
+    targetShift = Math.round(wip.totalDailyPlanQfn / 2);
+  } else if (isAllLead && wip && wip.totalDailyPlanLead > 0) {
+    targetShift = Math.round(wip.totalDailyPlanLead / 2);
+  } else if (pkgFilter.length === 0) {
+    targetShift = plan.rows.reduce((s, r) => s + r.plan_per_shift, 0);
   } else {
     const planRows = pkgFilter
       .map((k) => {

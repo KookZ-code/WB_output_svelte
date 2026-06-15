@@ -28,6 +28,8 @@ export interface WipData {
   orderByMpc: Map<string, number>;  // MPC code → A01 list position
   orderByNorm: Map<string, number>; // normalised name → A01 list position
   totalDailyPlan: number;           // sum of Plan across all A01 rows (per day)
+  totalDailyPlanQfn: number;        // QFN-only rows (per day)
+  totalDailyPlanLead: number;       // non-QFN rows (per day)
 }
 
 const TTL_MS = 60_000;
@@ -137,8 +139,10 @@ export async function fetchWip(): Promise<WipData> {
       if (!orderByNorm.has(nk)) orderByNorm.set(nk, i);
     }
   });
-  const totalDailyPlan = rows.reduce((s, r) => s + (r.Plan ?? 0), 0);
-  const data: WipData = { byMpc, byNorm, orderByMpc, orderByNorm, totalDailyPlan };
+  const totalDailyPlan    = rows.reduce((s, r) => s + (r.Plan ?? 0), 0);
+  const totalDailyPlanQfn  = rows.filter(r => /QFN/i.test(r.Package)).reduce((s, r) => s + (r.Plan ?? 0), 0);
+  const totalDailyPlanLead = totalDailyPlan - totalDailyPlanQfn;
+  const data: WipData = { byMpc, byNorm, orderByMpc, orderByNorm, totalDailyPlan, totalDailyPlanQfn, totalDailyPlanLead };
   cache = { at: Date.now(), data };
   return data;
 }

@@ -31,7 +31,7 @@ export const GET: RequestHandler = async ({ url }) => {
     // Raw bonded per package (API center) + WireBond WIP per package (A01) in parallel.
     [rows, wip] = await Promise.all([
       mwGet<MwPackage[]>('/api/v1/wb-uph/packages', { date, shift, hour: String(hour), packages }),
-      fetchWip().catch((): WipData => ({ byMpc: new Map(), byNorm: new Map(), orderByMpc: new Map(), orderByNorm: new Map(), totalDailyPlan: 0 })),
+      fetchWip().catch((): WipData => ({ byMpc: new Map(), byNorm: new Map(), orderByMpc: new Map(), orderByNorm: new Map(), totalDailyPlan: 0, totalDailyPlanQfn: 0, totalDailyPlanLead: 0 })),
     ]);
   } catch (e) {
     error(e instanceof MiddlewareError ? 502 : 500, e instanceof Error ? e.message : String(e));
