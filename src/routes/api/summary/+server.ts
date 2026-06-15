@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getPlan } from '$lib/server/plan-cache';
 import { mwGet, MiddlewareError } from '$lib/server/middleware';
+import { fetchWip, lookupPlan } from '$lib/server/wip';
 import { displayToDb, parsePkgFilter, resolveShift } from '$lib/server/handler-utils';
 import type { SummaryResponse } from '$lib/types/dashboard';
 
@@ -36,20 +37,26 @@ export const GET: RequestHandler = async ({ url }) => {
   }
   const daily_bonded = data.total_bonded + otherBonded;
 
-  // Target shift total — sum of plan_per_shift for the relevant packages.
-  let targetShift: number;
-  if (pkgFilter.length === 0) {
-    targetShift = plan.rows.reduce((s, r) => s + r.plan_per_shift, 0);
-  } else {
-    // mpcPlanMap by full MPC key, falling back to planMap by base name.
-    const plans = pkgFilter
-      .map((k) => {
-        const base = k.split('(')[0] ?? k;
-        return plan.mpcPlanMap.get(k) ?? plan.planMap.get(base);
-      })
-      .filter((p): p is NonNullable<typeof p> => Boolean(p));
-    targetShift = plans.reduce((s, r) => s + r.plan_per_shift, 0);
-  }
+  // WIP/plan from A01 API — non-fatal, falls back to Excel plan per package.
+  const wip = await fetchWip().catch(() => null);
+
+  // Target shift total — A01 plan (per day ÷ 2) preferred, Excel fallback.
+  const planRows = pkgFilter.length === 0
+    ? plan.rows
+    : pkgFilter
+        .map((k) => {
+          const base = k.split('(')[0] ?? k;
+          return plan.mpcPlanMap.get(k) ?? plan.planMap.get(base);
+        })
+        .filter((p): p is NonNullable<typeof p> => Boolean(p));
+
+  const targetShift = planRows.reduce((s, r) => {
+    const a01Daily = wip ? lookupPlan(r.package, wip) : undefined;
+    const perShift = a01Daily != null && a01Daily > 0
+      ? Math.round(a01Daily / 2)
+      : r.plan_per_shift;
+    return s + perShift;
+  }, 0);
 
   const achievementPct = targetShift > 0 ? (data.total_bonded / targetShift) * 100 : 0;
 
