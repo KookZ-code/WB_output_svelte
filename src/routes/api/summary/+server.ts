@@ -42,7 +42,7 @@ export const GET: RequestHandler = async ({ url }) => {
 
   // Target shift total — A01 plan (per day ÷ 2) preferred, Excel fallback.
   const planRows = pkgFilter.length === 0
-    ? plan.rows
+    ? [...plan.planMap.values()]
     : pkgFilter
         .map((k) => {
           const base = k.split('(')[0] ?? k;
@@ -51,7 +51,7 @@ export const GET: RequestHandler = async ({ url }) => {
         .filter((p): p is NonNullable<typeof p> => Boolean(p));
 
   const targetShift = planRows.reduce((s, r) => {
-    const a01Daily = wip ? lookupPlan(r.package, wip) : undefined;
+    const a01Daily = wip ? lookupPlan(r.package_norm, wip) : undefined;
     const perShift = a01Daily != null && a01Daily > 0
       ? Math.round(a01Daily / 2)
       : r.plan_per_shift;
