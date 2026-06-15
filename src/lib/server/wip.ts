@@ -139,8 +139,17 @@ export async function fetchWip(): Promise<WipData> {
       if (!orderByNorm.has(nk)) orderByNorm.set(nk, i);
     }
   });
-  const totalDailyPlan    = rows.reduce((s, r) => s + (r.Plan ?? 0), 0);
-  const totalDailyPlanQfn  = rows.filter(r => /QFN/i.test(r.Package)).reduce((s, r) => s + (r.Plan ?? 0), 0);
+  // Deduplicate by exact package name before summing plans — A01 may return
+  // multiple rows per package (one per lot/machine) each with the same Plan value.
+  const seenPkg = new Set<string>();
+  let totalDailyPlan = 0, totalDailyPlanQfn = 0;
+  for (const r of rows) {
+    if (seenPkg.has(r.Package)) continue;
+    seenPkg.add(r.Package);
+    const p = r.Plan ?? 0;
+    totalDailyPlan += p;
+    if (/QFN/i.test(r.Package)) totalDailyPlanQfn += p;
+  }
   const totalDailyPlanLead = totalDailyPlan - totalDailyPlanQfn;
   const data: WipData = { byMpc, byNorm, orderByMpc, orderByNorm, totalDailyPlan, totalDailyPlanQfn, totalDailyPlanLead };
   cache = { at: Date.now(), data };
