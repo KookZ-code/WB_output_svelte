@@ -34,7 +34,7 @@
     <span class="accent"></span>
     <div class="label">Achievement vs Target</div>
     <div class="value" data-tone={achievementTone}>
-      {summary ? summary.achievement_pct.toFixed(1) + '%' : '—'}
+      {summary ? (summary.achievement_pct ?? 0).toFixed(1) + '%' : '—'}
     </div>
     <div class="sub">
       {summary ? `target ${fmtInt(summary.target_shift)} units / shift` : 'target — units / shift'}
