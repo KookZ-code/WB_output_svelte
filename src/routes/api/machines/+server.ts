@@ -10,6 +10,7 @@ interface MwMachine {
   machine_id: string;
   badge_no: string;
   uph: number;
+  max_uph: number | null;
   bonded_unit: number;
   last_scan_ts: string | null;
   pkg_mpc: string;
@@ -56,6 +57,7 @@ export const GET: RequestHandler = async ({ url }) => {
         badge_no: r.badge_no,
         target_uph: uphTarget,
         uph: r.uph,
+        max_uph: r.max_uph ?? null,
         bonded_unit: r.bonded_unit,
         last_scan_ts: r.last_scan_ts,
         util_pct: wbMap.get(normId(r.machine_id))?.util_pct ?? null,

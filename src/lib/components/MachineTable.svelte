@@ -78,6 +78,11 @@
     return 'var(--color-brand-red)';
   }
 
+  function maxUphColor(r: MachineRow): string {
+    if (r.max_uph == null || r.target_uph <= 0) return 'var(--color-text-muted)';
+    return r.max_uph >= r.target_uph ? 'var(--color-accent-green)' : 'var(--color-brand-red)';
+  }
+
   function badgeClass(pct: number): string {
     if (pct >= 0)   return 'green';
     if (pct >= -20) return 'orange';
@@ -150,6 +155,7 @@
             <th class="r"><button class="th-sort" onclick={() => toggleSort('bonded_unit')}>Output Units{si('bonded_unit')}</button></th>
             <th class="r"><button class="th-sort" onclick={() => toggleSort('vs_output_pct')}>Output vs Expected{si('vs_output_pct')}</button></th>
             <th class="r"><button class="th-sort" onclick={() => toggleSort('last_scan_ts')}>Last Update{si('last_scan_ts')}</button></th>
+            <th class="r">Max UPH</th>
             {#if hasUtil}
               <th>Status</th>
               <th class="r"><button class="th-sort" onclick={() => toggleSort('util_pct')}>Utilization{si('util_pct')}</button></th>
@@ -173,6 +179,13 @@
                 </span>
               </td>
               <td class="r muted">{r.last_scan_ts ? r.last_scan_ts.slice(11, 16) : '—'}</td>
+              <td class="r">
+                {#if r.max_uph != null && r.target_uph > 0}
+                  <span style:color={maxUphColor(r)} style:font-weight="700">{fmtInt(r.max_uph)} / {fmtInt(r.target_uph)}</span>
+                {:else}
+                  <span class="muted">—</span>
+                {/if}
+              </td>
 
               {#if hasUtil}
                 <!-- Status indicator -->
@@ -221,7 +234,7 @@
           {/each}
           {#if rows.length === 0}
             <tr>
-              <td colspan={hasUtil ? 9 : 6} class="empty">
+              <td colspan={hasUtil ? 10 : 7} class="empty">
                 No machines reporting this package in this slot
               </td>
             </tr>
