@@ -1,5 +1,6 @@
 <script lang="ts">
   // Top header — title + filters (date, shift, package multi-select) + refresh status.
+  import { base } from '$app/paths';
   import { dashboard, resetDrilldown } from '$lib/stores/dashboard.svelte';
   import type { Shift } from '$lib/types/dashboard';
   import PackageDropdown from './PackageDropdown.svelte';
@@ -80,11 +81,18 @@
     <div class="divider"></div>
 
     <a
-      href="/testSvelte/monitor?date={dashboard.date}&shift={dashboard.shift}"
-      class="monitor-btn"
+      href="{base}/monitor?date={dashboard.date}&shift={dashboard.shift}"
+      class="action-btn"
       target="_blank"
       rel="noopener"
     >Machine Monitor</a>
+
+    <a
+      href="{base}/report?date={dashboard.date}&shift={dashboard.shift}"
+      class="action-btn"
+      target="_blank"
+      rel="noopener"
+    >Generate Report</a>
 
     <div class="divider"></div>
 
@@ -158,7 +166,7 @@
     height: 28px;
     background: rgba(255, 255, 255, 0.2);
   }
-  .monitor-btn {
+  .action-btn {
     color: #fff;
     text-decoration: none;
     font-size: 12px;
@@ -169,7 +177,7 @@
     white-space: nowrap;
     letter-spacing: 0.02em;
   }
-  .monitor-btn:hover { background: rgba(255,255,255,0.12); }
+  .action-btn:hover { background: rgba(255,255,255,0.12); }
   .shift-toggle {
     display: flex;
     border-radius: var(--radius-sm);

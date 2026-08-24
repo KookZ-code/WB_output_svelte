@@ -107,3 +107,23 @@ export interface PlanRow {
   plan_per_shift: number;
   uph_target: number;
 }
+
+// Report data types
+export interface ReportMachineRow extends MachineRow {
+  expected_output: number;
+  lost_group_mins: Record<string, number>;
+}
+
+export interface ReportData {
+  date: string;
+  shift: Shift;
+  shift_label: string;
+  window_start: string;
+  window_end: string;
+  total_bonded: number;
+  target_shift: number;
+  achievement_pct: number;
+  packages: (PackageRow & {
+    machines: ReportMachineRow[];
+  })[];
+}
