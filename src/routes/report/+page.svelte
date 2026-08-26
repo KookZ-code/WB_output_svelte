@@ -10,6 +10,7 @@
   let loading = $state(false);
   let error: string | null = $state(null);
   let expandedPackages = $state<Record<string, boolean>>({});
+  let expandedEvents = $state<Record<string, boolean>>({});
 
   async function loadReport() {
     loading = true;
@@ -53,10 +54,19 @@
   }
 
   function calculateLostGroups(mins: Record<string, number>) {
-    const setup = (mins['SETUP'] ?? 0) + (mins['SBO'] ?? 0) + (mins['IDLE'] ?? 0);
-    const convert = mins['CONVERT'] ?? 0;
+    const setup = (mins['SETUP'] ?? 0) + (mins['SBO'] ?? 0) + (mins['CONVERT'] ?? 0);
+    const buyoff = (mins['IDLE'] ?? 0);
     const downtime = (mins['DOWN'] ?? 0) + (mins['PM'] ?? 0);
-    return { setup, convert, downtime };
+    return { setup, buyoff, downtime };
+  }
+
+  function toggleEvents(machineId: string) {
+    const key = machineId;
+    expandedEvents[key] = !expandedEvents[key];
+  }
+
+  function formatTime(timeStr: string) {
+    return timeStr.split('T')[1]?.slice(0, 5) ?? timeStr;
   }
 </script>
 
@@ -153,9 +163,11 @@
                       <th class="r">vs Target %</th>
                       <th class="r">Util %</th>
                       <th class="r">UPH</th>
+                      <th class="r">STD UPH</th>
                       <th class="r">Set up (min)</th>
                       <th class="r">Buy off / Cratering (min)</th>
                       <th class="r">Downtime (min)</th>
+                      <th>Events in Shift</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -186,10 +198,40 @@
                             <span class="muted">—</span>
                           {/if}
                         </td>
+                        <td class="r">{fmtInt(machine.target_uph)}</td>
                         <td class="r">{lost.setup > 0 ? lost.setup : '—'}</td>
-                        <td class="r">{lost.convert > 0 ? lost.convert : '—'}</td>
+                        <td class="r">{lost.buyoff > 0 ? lost.buyoff : '—'}</td>
                         <td class="r">{lost.downtime > 0 ? lost.downtime : '—'}</td>
+                        <td>
+                          {#if machine.events.length > 0}
+                            <button
+                              class="btn-events"
+                              onclick={() => toggleEvents(machine.machine_id)}
+                              title="View events"
+                            >
+                              {machine.events.length} event{machine.events.length !== 1 ? 's' : ''}
+                            </button>
+                          {:else}
+                            <span class="muted">—</span>
+                          {/if}
+                        </td>
                       </tr>
+                      {#if expandedEvents[machine.machine_id] && machine.events.length > 0}
+                        <tr class="events-row">
+                          <td colspan="11">
+                            <div class="events-detail">
+                              {#each machine.events as event}
+                                <div class="event-pill">
+                                  <span class="event-type">{event.job_type}</span>
+                                  <span class="event-time">{formatTime(event.t_start)}–{formatTime(event.t_end)}</span>
+                                  <span class="event-desc">{event.des_job}</span>
+                                  <span class="event-duration">({event.dur_min}m)</span>
+                                </div>
+                              {/each}
+                            </div>
+                          </td>
+                        </tr>
+                      {/if}
                     {/each}
                   </tbody>
                 </table>
@@ -496,5 +538,75 @@
     text-align: center;
     color: var(--color-text-muted);
     font-size: 14px;
+  }
+
+  .btn-events {
+    background: var(--color-primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .btn-events:hover {
+    background: #005f9e;
+  }
+
+  .events-row {
+    background: var(--color-surface-alt);
+  }
+
+  .events-row td {
+    padding: 12px;
+    border-bottom: 1px solid var(--color-surface-gray);
+  }
+
+  .events-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .event-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--color-surface);
+    border-left: 3px solid var(--color-primary);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    flex-wrap: wrap;
+  }
+
+  .event-pill .event-type {
+    font-weight: 700;
+    background: var(--color-primary);
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    min-width: fit-content;
+  }
+
+  .event-pill .event-time {
+    color: var(--color-text-muted);
+    font-feature-settings: 'tnum';
+    min-width: fit-content;
+  }
+
+  .event-pill .event-desc {
+    flex: 1;
+    min-width: 200px;
+    color: var(--color-text-body);
+  }
+
+  .event-pill .event-duration {
+    color: var(--color-text-muted);
+    font-weight: 600;
+    min-width: fit-content;
   }
 </style>

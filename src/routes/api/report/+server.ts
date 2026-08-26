@@ -130,16 +130,16 @@ export const GET: RequestHandler = async ({ url }) => {
             // Map job types to report groups
             if (/M\/C DOWN|ENGINEERING DOWN|FACILITY DOWN/.test(jt)) {
               group = 'DOWN';
-            } else if (/SETUP|CLEAN MOLD|CHANGE CAP/.test(jt)) {
-              group = 'SETUP';
-            } else if (/IDLE|WAIT/.test(ev.des_job || '')) {
-              group = 'IDLE';
-            } else if (jt === 'SETUP BY OPERATOR') {
-              group = 'SBO';
             } else if (jt === 'CONVERT') {
               group = 'CONVERT';
             } else if (jt === 'PM') {
               group = 'PM';
+            } else if (/IDLE|WAIT/i.test(ev.des_job || '')) {
+              group = 'IDLE';
+            } else if (jt === 'SETUP BY OPERATOR') {
+              group = 'SBO';
+            } else if (/SETUP|CLEAN MOLD|CHANGE CAP/.test(jt)) {
+              group = 'SETUP';
             }
 
             lost_group_mins[group] = (lost_group_mins[group] ?? 0) + ev.dur_min;

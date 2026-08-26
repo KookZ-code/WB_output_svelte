@@ -15,7 +15,7 @@ const printHostname: PluginOption = {
     server.printUrls = () => {
       original();
       const protocol = server.config.server.https ? 'https' : 'http';
-      const port = server.config.server.port ?? 5175;
+      const port = server.config.server.port ?? 5173;
       const base = server.config.base || '/';
       const hostname = os.hostname().toLowerCase();
       // Match Vite's ANSI styling: green arrow + bold label + cyan URL
@@ -29,7 +29,7 @@ const printHostname: PluginOption = {
 export default defineConfig({
   plugins: [sveltekit(), printHostname],
   server: {
-    port: 5175,
+    port: 5173,
     // Allow access via computer name / any hostname.
     // Vite 6 defaults to localhost-only and returns 403 for other Host headers,
     // which breaks LAN access using a stable computer name. Internal-network
