@@ -9,7 +9,7 @@
   let data       = $state<MonitorResponse | null>(null);
   let loading    = $state(true);
   let lastFetch  = $state('');
-  let pkgFilter    = $state('');
+  let pkgFilter  = $state('all'); // 'all' | 'qfn' | 'lead' | package name
   let statusFilter = $state<MonitorRow['status'] | null>(null);
 
   function toggleStatus(s: MonitorRow['status']) {
@@ -38,18 +38,35 @@
     if (!data) return [];
     return data.rows.filter(r => {
       if (statusFilter && r.status !== statusFilter) return false;
-      if (pkgFilter && !r.package.toLowerCase().includes(pkgFilter.toLowerCase())) return false;
+      if (pkgFilter === 'qfn') {
+        if (!r.package.includes('FN')) return false;
+      } else if (pkgFilter === 'lead') {
+        if (r.package.includes('FN')) return false;
+      } else if (pkgFilter !== 'all') {
+        if (!r.package.toLowerCase().includes(pkgFilter.toLowerCase())) return false;
+      }
       return true;
     });
   });
 
   const counts = $derived({
-    no_data: data?.rows.filter(r => r.status === 'no_data').length ?? 0,
-    stale:   data?.rows.filter(r => r.status === 'stale').length   ?? 0,
-    active:  data?.rows.filter(r => r.status === 'active').length  ?? 0,
+    no_data: filtered.filter(r => r.status === 'no_data').length,
+    stale:   filtered.filter(r => r.status === 'stale').length,
+    active:  filtered.filter(r => r.status === 'active').length,
   });
 
   const packages = $derived([...new Set((data?.rows ?? []).map(r => r.package).filter(Boolean))].sort());
+
+  const packageOptions = $derived.by(() => {
+    const hasQfn = packages.some(p => p.includes('FN'));
+    const hasLead = packages.some(p => !p.includes('FN'));
+    return [
+      { value: 'all', label: 'ALL' },
+      ...(hasQfn ? [{ value: 'qfn', label: 'ALL QFN' }] : []),
+      ...(hasLead ? [{ value: 'lead', label: 'ALL Lead' }] : []),
+      ...packages.map(p => ({ value: p, label: p })),
+    ];
+  });
 
   function fmtSince(min: number | null): string {
     if (min === null) return '—';
@@ -168,12 +185,11 @@
 
   <!-- ── Filter bar ──────────────────────────────────────────────────── -->
   <div class="filter-bar">
-    <input
-      type="text"
-      class="pkg-search"
-      placeholder="Filter by package…"
-      bind:value={pkgFilter}
-    />
+    <select class="pkg-select" bind:value={pkgFilter}>
+      {#each packageOptions as opt}
+        <option value={opt.value}>{opt.label}</option>
+      {/each}
+    </select>
     <span class="filter-count">{filtered.length} machines</span>
     <button
       class="export-btn"
@@ -318,16 +334,17 @@
     gap: 12px;
     padding: 12px 24px;
   }
-  .pkg-search {
+  .pkg-select {
     padding: 7px 12px;
     border: 1px solid var(--color-border-input);
     border-radius: var(--radius-sm);
     font-size: 13px;
     font-family: var(--font);
-    width: 260px;
     background: var(--color-surface);
+    color: var(--color-text-body);
+    cursor: pointer;
   }
-  .pkg-search:focus { outline: none; border-color: var(--color-accent-blue); }
+  .pkg-select:focus { outline: none; border-color: var(--color-accent-blue); }
   .filter-count { font-size: 12px; color: var(--color-text-muted); }
   .export-btn {
     margin-left: auto;
