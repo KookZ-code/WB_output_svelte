@@ -127,3 +127,32 @@ export interface ReportData {
     machines: ReportMachineRow[];
   })[];
 }
+
+// ── UPH monitoring page (/uph) ───────────────────────────────────────────
+export interface UphMachine {
+  machine_id: string;
+  badge_no: string;
+  uph: number; // latest recorded UPH as of this hour
+  target_uph: number; // standard UPH (0 = no standard)
+  max_uph: number | null;
+  bonded_unit: number;
+  last_scan_ts: string | null;
+  util_pct: number | null;
+  events: WbEvent[];
+  meet: boolean | null; // null when no standard UPH
+}
+
+export interface UphHour {
+  hour: number;
+  label: string; // "07:00"
+  future: boolean; // slot has not started yet -> render empty
+  meet: number;
+  not_meet: number;
+  machines: UphMachine[]; // empty when future
+}
+
+export interface UphResponse {
+  package: string;
+  target_uph: number;
+  hours: UphHour[];
+}

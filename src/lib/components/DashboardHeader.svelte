@@ -88,6 +88,13 @@
     >Machine Monitor</a>
 
     <a
+      href="{base}/uph?date={dashboard.date}&shift={dashboard.shift}"
+      class="action-btn"
+      target="_blank"
+      rel="noopener"
+    >UPH Monitor</a>
+
+    <a
       href="{base}/report?date={dashboard.date}&shift={dashboard.shift}"
       class="action-btn"
       target="_blank"
