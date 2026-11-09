@@ -45,8 +45,17 @@ export const GET: RequestHandler = async ({ url }) => {
   for (const { package: pkg_key, bonded } of rows) {
     const basePkg = pkg_key.split('(')[0] ?? pkg_key;
     const mpcPlanRow = plan.mpcPlanMap.get(pkg_key);
+    // QFN variants keep their full "PACKAGE(CODE)" name (no base merge), so
+    // each variant is its own row. Lead packages still merge by base.
+    const isQfnVariant = /QFN/i.test(basePkg) && pkg_key !== basePkg;
 
-    if (mpcPlanRow) {
+    if (isQfnVariant && !mpcPlanRow) {
+      const planRow = plan.planMap.get(basePkg);
+      const planPerShift = planRow?.plan_per_shift ?? 0;
+      const target = planRow ? Math.trunc(planPerShift * hourFraction) : 0;
+      const pct = target > 0 ? ((bonded - target) / target) * 100 : 0;
+      mpcRows.push({ package: pkg_key, plan_per_shift: planPerShift, bonded, target, pct });
+    } else if (mpcPlanRow) {
       const target = Math.trunc(mpcPlanRow.plan_per_shift * hourFraction);
       const pct = target > 0 ? ((bonded - target) / target) * 100 : 0;
       mpcRows.push({ package: pkg_key, plan_per_shift: mpcPlanRow.plan_per_shift, bonded, target, pct });
