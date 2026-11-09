@@ -58,8 +58,14 @@ export const GET: RequestHandler = async ({ url }) => {
   for (const { package: pkg_key, bonded } of packageRows) {
     const basePkg = pkg_key.split('(')[0] ?? pkg_key;
     const mpcPlanRow = plan.mpcPlanMap.get(pkg_key);
+    // QFN variants keep their full "PACKAGE(CODE)" name (same as /api/packages).
+    const isQfnVariant = /QFN/i.test(basePkg) && pkg_key !== basePkg;
 
-    if (mpcPlanRow) {
+    if (isQfnVariant && !mpcPlanRow) {
+      const planPerShift = plan.planMap.get(basePkg)?.plan_per_shift ?? 0;
+      const pct = planPerShift > 0 ? ((bonded - planPerShift) / planPerShift) * 100 : 0;
+      mpcRows.push({ package: pkg_key, plan_per_shift: planPerShift, bonded, target: planPerShift, pct });
+    } else if (mpcPlanRow) {
       const target = mpcPlanRow.plan_per_shift;
       const pct = target > 0 ? ((bonded - target) / target) * 100 : 0;
       mpcRows.push({ package: pkg_key, plan_per_shift: mpcPlanRow.plan_per_shift, bonded, target, pct });
