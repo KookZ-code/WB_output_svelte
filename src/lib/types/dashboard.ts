@@ -50,16 +50,26 @@ export interface MachineRowDb {
   badge_no: string;
   target_uph: number;
   uph: number;
-  max_uph: number | null; // max UPH over last 3 days for this package
+  max_uph: number | null; // max UPH over last 1 day for this package
   bonded_unit: number;
   vs_output_pct: number; // (bonded − target_uph × elapsed_hours) / expected × 100
   last_scan_ts: string | null; // "YYYY-MM-DD HH:MM:SS" of the latest in-slot scan
 }
 
-/** Full row after merging with WB Report utilization + events */
+/** One machine from the API center's /api/v1/live/machines (`status` is the source of truth for the badge). */
+export interface LiveMachine {
+  code_machine: string;
+  status: string; // "Running" | "Setup" | "M/C Down" | "Convert"
+  job_type: string | null;
+  symptom: string | null;
+  elapsed_min: number;
+}
+
+/** Full row after merging with WB Report utilization + events + live status */
 export interface MachineRow extends MachineRowDb {
   util_pct: number | null;
   events: WbEvent[];
+  live?: LiveMachine | null;
 }
 
 export interface MachinesResponse {

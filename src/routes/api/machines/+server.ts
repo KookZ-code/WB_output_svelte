@@ -4,6 +4,8 @@ import { getPlan } from '$lib/server/plan-cache';
 import { mwGet, MiddlewareError } from '$lib/server/middleware';
 import { displayToDb, resolveShift } from '$lib/server/handler-utils';
 import { fetchWbReport, normId, type WbReportMachine } from '$lib/server/wbReport';
+import { fetchLiveMachines } from '$lib/server/liveMachines';
+import type { LiveMachine } from '$lib/types/dashboard';
 
 // Raw per-machine rows from the API center (plan target/% applied below).
 interface MwMachine {
@@ -31,10 +33,11 @@ export const GET: RequestHandler = async ({ url }) => {
   const dbPkg = displayToDb(pkg, plan.displayNames);
 
   try {
-    // Raw machine rows from the API center + WB Report overlay, in parallel.
-    const [rows, wbMap] = await Promise.all([
+    // Raw machine rows from the API center + WB Report overlay + live status, in parallel.
+    const [rows, wbMap, liveMap] = await Promise.all([
       mwGet<MwMachine[]>('/api/v1/wb-uph/machines', { date, shift, hour: String(hour), package: dbPkg }),
       fetchWbReport(date, shift).catch(() => new Map<string, WbReportMachine>()),
+      fetchLiveMachines().catch(() => new Map<string, LiveMachine>()),
     ]);
 
     // Per-row UPH target: prefer mpc plan for the row's variant, fall back to base.
@@ -47,7 +50,7 @@ export const GET: RequestHandler = async ({ url }) => {
     const slotIdx = Math.max(0, w.hours.indexOf(hour));
     const hourFraction = (slotIdx + 1) / shiftHours;
 
-    // Merge utilisation + events + per-row UPH target into each row.
+    // Merge utilisation + events + live status + per-row UPH target into each row.
     const mergedBase = rows.map((r) => {
       const uphTarget = r.pkg_mpc
         ? plan.mpcPlanMap.get(r.pkg_mpc)?.uph_target ?? baseUphTarget
@@ -62,6 +65,7 @@ export const GET: RequestHandler = async ({ url }) => {
         last_scan_ts: r.last_scan_ts,
         util_pct: wbMap.get(normId(r.machine_id))?.util_pct ?? null,
         events: wbMap.get(normId(r.machine_id))?.events ?? [],
+        live: liveMap.get(normId(r.machine_id)) ?? null,
       };
     });
 

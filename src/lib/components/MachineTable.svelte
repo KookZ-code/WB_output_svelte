@@ -3,7 +3,7 @@
   import type { MachineRow } from '$lib/types/dashboard';
   import { dashboard } from '$lib/stores/dashboard.svelte';
   import { fmtInt, fmtSignedPct } from '$lib/utils/format';
-  import { STATUS_MAP, currentStatus, pillStyle, pillAbbr, type StatusId } from '$lib/utils/machineStatus';
+  import { STATUS_MAP, rowStatus, pillStyle, pillAbbr, type StatusId } from '$lib/utils/machineStatus';
 
   type Props = {
     rows: MachineRow[] | null;
@@ -65,7 +65,7 @@
   const statusCounts = $derived.by(() => {
     if (!rows || !hasUtil) return null;
     const counts: Record<StatusId, number> = { run:0, down:0, idle:0, setup:0, convert:0, sbo:0, pm:0 };
-    for (const r of rows) counts[currentStatus(r.events).id]++;
+    for (const r of rows) counts[rowStatus(r).id]++;
     return counts;
   });
 
@@ -190,7 +190,7 @@
               {#if hasUtil}
                 <!-- Status indicator -->
                 {#if true}
-                  {@const st = currentStatus(r.events)}
+                  {@const st = rowStatus(r)}
                   <td class="td-status">
                     <span class="status-badge"
                       style:background={st.bg}

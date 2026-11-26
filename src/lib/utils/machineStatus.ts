@@ -1,7 +1,7 @@
 // Derive a machine's operational state + job-type pill styling from its WB events.
 // Shared by the by-machine table and the machine-monitor page.
 
-import type { WbEvent } from '$lib/types/dashboard';
+import type { LiveMachine, WbEvent } from '$lib/types/dashboard';
 
 export type StatusId = 'run' | 'down' | 'idle' | 'setup' | 'convert' | 'sbo' | 'pm';
 export interface MachineStatus {
@@ -28,7 +28,7 @@ export function isIdle(ev: { job_type: string; des_job: string }): boolean {
 }
 
 /** Map a single event to its status bucket (handles the SBO → IDLE split). */
-function eventStatus(ev: WbEvent): MachineStatus {
+function eventStatus(ev: { job_type: string; des_job: string }): MachineStatus {
   if (isIdle(ev)) return STATUS_MAP.idle;
   const jt = (ev.job_type || '').toUpperCase();
   if (jt === 'M/C DOWN' || jt === 'ENGINEERING DOWN' || jt === 'FACILITY DOWN') return STATUS_MAP.down;
@@ -37,6 +37,27 @@ function eventStatus(ev: WbEvent): MachineStatus {
   if (jt === 'CONVERT') return STATUS_MAP.convert;
   if (jt === 'PM') return STATUS_MAP.pm;
   return STATUS_MAP.run;
+}
+
+// Used when the live feed has no job_type for a non-running machine.
+const LIVE_STATUS_FALLBACK: Record<string, StatusId> = {
+  'm/c down': 'down',
+  'setup': 'setup',
+  'convert': 'convert',
+};
+
+/** Badge status from the live feed (/api/v1/live/machines). `status` decides RUN vs
+ *  not-running; for a non-running machine the job_type picks DOWN / SBO / IDLE / SETUP / CONV. */
+export function liveStatus(live: LiveMachine): MachineStatus {
+  const st = (live.status || '').toLowerCase();
+  if (st === 'running') return STATUS_MAP.run;
+  if (!live.job_type) return STATUS_MAP[LIVE_STATUS_FALLBACK[st] ?? 'run'];
+  return eventStatus({ job_type: live.job_type, des_job: live.symptom ?? '' });
+}
+
+/** Badge status for a table row: the live feed when it has the machine, else the WB events. */
+export function rowStatus(r: { live?: LiveMachine | null; events: WbEvent[] }): MachineStatus {
+  return r.live ? liveStatus(r.live) : currentStatus(r.events);
 }
 
 // Compare "HH:MM" strings — returns true if a < b
