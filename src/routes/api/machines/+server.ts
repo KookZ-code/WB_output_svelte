@@ -4,7 +4,7 @@ import { getPlan } from '$lib/server/plan-cache';
 import { mwGet, MiddlewareError } from '$lib/server/middleware';
 import { displayToDb, resolveShift } from '$lib/server/handler-utils';
 import { fetchWbReport, normId, type WbReportMachine } from '$lib/server/wbReport';
-import { fetchLiveMachines } from '$lib/server/liveMachines';
+import { fetchLiveMachines, withLiveEvent } from '$lib/server/liveMachines';
 import type { LiveMachine } from '$lib/types/dashboard';
 
 // Raw per-machine rows from the API center (plan target/% applied below).
@@ -55,6 +55,8 @@ export const GET: RequestHandler = async ({ url }) => {
       const uphTarget = r.pkg_mpc
         ? plan.mpcPlanMap.get(r.pkg_mpc)?.uph_target ?? baseUphTarget
         : baseUphTarget;
+      const id = normId(r.machine_id);
+      const live = liveMap.get(id) ?? null;
       return {
         machine_id: r.machine_id,
         badge_no: r.badge_no,
@@ -63,9 +65,9 @@ export const GET: RequestHandler = async ({ url }) => {
         max_uph: r.max_uph ?? null,
         bonded_unit: r.bonded_unit,
         last_scan_ts: r.last_scan_ts,
-        util_pct: wbMap.get(normId(r.machine_id))?.util_pct ?? null,
-        events: wbMap.get(normId(r.machine_id))?.events ?? [],
-        live: liveMap.get(normId(r.machine_id)) ?? null,
+        util_pct: wbMap.get(id)?.util_pct ?? null,
+        events: withLiveEvent(wbMap.get(id)?.events ?? [], live),
+        live,
       };
     });
 

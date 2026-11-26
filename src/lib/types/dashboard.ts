@@ -63,6 +63,7 @@ export interface LiveMachine {
   job_type: string | null;
   symptom: string | null;
   elapsed_min: number;
+  started_at: string | null; // UTC ISO timestamp
 }
 
 /** Full row after merging with WB Report utilization + events + live status */
