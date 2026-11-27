@@ -2,7 +2,7 @@
   import { base } from '$app/paths';
   import { onMount } from 'svelte';
   import type { MonitorRow, MonitorResponse, WbEvent } from '$lib/types/dashboard';
-  import { currentStatus, pillStyle, pillAbbr } from '$lib/utils/machineStatus';
+  import { rowStatus, pillStyle, pillAbbr } from '$lib/utils/machineStatus';
 
   const REFRESH_MS = 2 * 60 * 1000; // 2 min auto-refresh
 
@@ -106,7 +106,7 @@
         r.last_scan_ts ?? '',
         r.since_min ?? '',
         statusLabel(r.status),
-        currentStatus(r.events).label,
+        rowStatus(r).label,
         eventsToText(r.events),
       ].map((c) => csvCell(String(c)));
       lines.push(cells.join(','));
@@ -220,7 +220,7 @@
           <tr><td colspan="7" class="empty">No machines found</td></tr>
         {:else}
           {#each filtered as r (r.machine_id)}
-            {@const st = currentStatus(r.events)}
+            {@const st = rowStatus(r)}
             <tr class="row-{r.status}">
               <td><strong>{r.machine_id}</strong></td>
               <td class="pkg">{r.package || '—'}</td>

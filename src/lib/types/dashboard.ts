@@ -101,6 +101,7 @@ export interface MonitorRow {
   since_min: number | null;
   status: 'no_data' | 'stale' | 'active';
   events: WbEvent[]; // downtime/setup events during the shift (from WB Report overlay)
+  live?: LiveMachine | null; // live job status (drives the RUN/DOWN badge)
 }
 
 export interface MonitorResponse {
