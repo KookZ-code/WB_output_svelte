@@ -7,9 +7,6 @@ import { mwGet } from '$lib/server/middleware';
 import { normId } from '$lib/server/wbReport';
 import type { LiveMachine, WbEvent } from '$lib/types/dashboard';
 
-// The live feed returns UTC timestamps; the Events column shows shop-floor local time.
-const SHOP_TZ = 'Asia/Bangkok';
-
 /** Fetch live status for every machine, indexed by normalised id (same key as normId()).
  *  Caller should `.catch()` so the table still renders when the live feed is down. */
 export async function fetchLiveMachines(): Promise<Map<string, LiveMachine>> {
@@ -33,12 +30,9 @@ export function withLiveEvent(events: WbEvent[], live: LiveMachine | null): WbEv
 
   const liveEvent: WbEvent = {
     job_type: live.job_type,
-    t_start: new Date(live.started_at).toLocaleTimeString('en-GB', {
-      timeZone: SHOP_TZ,
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }),
+    // The "Z" suffix is a mislabel: started_at is already shop-floor time (it matches the
+    // clock and elapsed_min), so take HH:MM as-is, the same way last_scan_ts is shown.
+    t_start: live.started_at.slice(11, 16),
     t_end: '',
     des_job: live.symptom ?? '',
     dur_min: live.elapsed_min,
